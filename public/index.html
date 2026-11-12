@@ -1,171 +1,711 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ArcSite Navigator - Home</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArcSite Navigator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root{--accent:#0a66c2;--bg:#fafbfc;--text:#1f2937}
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center}
-    .container{max-width:600px;width:100%;padding:40px;text-align:center}
-    h1{font-size:2.5rem;margin-bottom:16px;background:linear-gradient(135deg,var(--accent),#1e40af);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-    p{margin-bottom:32px;color:#6b7280}
-    .btn{display:inline-block;background:linear-gradient(135deg,var(--accent),#1e40af);color:#fff;padding:14px 32px;border-radius:12px;text-decoration:none;font-weight:600;border:none;cursor:pointer;font-size:16px;box-shadow:0 10px 25px rgba(10,102,194,0.2);transition:all 200ms}
-    .btn:hover{transform:translateY(-2px);box-shadow:0 15px 30px rgba(10,102,194,0.3)}
-    .projects-list{margin-top:48px;text-align:left}
-    .project-item{background:#fff;padding:20px;border-radius:12px;margin-bottom:12px;border:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
-    .project-item h3{font-size:16px;margin-bottom:4px}
-    .project-item small{color:#6b7280}
-    .project-link{background:#f3f4f6;color:var(--accent);padding:8px 16px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600}
-    .project-link:hover{background:#e5e7eb}
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/main.css">
 </head>
-<body>
-  <div class="container">
-    <h1>🏗️ ArcSite Navigator</h1>
-    <p>Create and manage interactive site plans for your architecture projects</p>
-    
-    <button class="btn" onclick="createNewProject()">+ Create New Project</button>
-    
-    <div class="projects-list" id="projects-list"></div>
+<body data-theme="studio">
+  <!-- ============ AUTH VIEW ============ -->
+  <div id="auth-view" class="view">
+    <div class="auth-bg">
+      <div class="auth-theme-bar">
+        <div class="theme-switcher" role="group" aria-label="Theme">
+          <button type="button" class="theme-btn active" data-set-theme="studio" title="Architectural Studio">Studio</button>
+          <button type="button" class="theme-btn" data-set-theme="blueprint" title="Blueprint Cyanotype">Blueprint</button>
+          <button type="button" class="theme-btn" data-set-theme="cad-dark" title="CAD Darkroom">CAD Dark</button>
+        </div>
+      </div>
+      <div class="auth-card">
+        <div class="auth-brand">
+          <div class="auth-logo">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+              <rect width="40" height="40" rx="6" fill="currentColor"/>
+              <path d="M11 29L20 11L29 29M14.5 23H25.5" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter"/>
+            </svg>
+          </div>
+          <h1 class="auth-title">ArcSite Studio</h1>
+          <p class="auth-subtitle">Architectural Site Plans, CAD &amp; BIM Workspace</p>
+        </div>
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-tab="login">Sign In</button>
+          <button class="auth-tab" data-tab="register">Create Account</button>
+        </div>
+        <!-- Login Form -->
+        <form id="login-form" class="auth-form active">
+          <div class="form-group">
+            <label for="login-email">Email</label>
+            <input type="email" id="login-email" placeholder="you@company.com" required autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+          <div id="login-error" class="form-error"></div>
+          <button type="submit" class="btn btn-primary btn-full">
+            <span class="btn-text">Sign In</span>
+            <span class="btn-loader" hidden></span>
+          </button>
+        </form>
+        <!-- Register Form -->
+        <form id="register-form" class="auth-form">
+          <div class="form-group">
+            <label for="register-name">Full Name</label>
+            <input type="text" id="register-name" placeholder="Jane Doe" required autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label for="register-email">Email</label>
+            <input type="email" id="register-email" placeholder="you@company.com" required autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="register-password">Password</label>
+            <input type="password" id="register-password" placeholder="Min 6 characters" required minlength="6" autocomplete="new-password">
+          </div>
+          <div id="register-error" class="form-error"></div>
+          <button type="submit" class="btn btn-primary btn-full">
+            <span class="btn-text">Create Account</span>
+            <span class="btn-loader" hidden></span>
+          </button>
+        </form>
+      </div>
+    </div>
   </div>
 
-  <script>
-    async function createNewProject() {
-      const projectName = prompt('Enter project name:', 'Riverside Development');
-      if (!projectName) return;
-      
-      try {
-        const res = await fetch('/api/projects/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectName })
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-          // Save to recent projects
-          const recent = JSON.parse(localStorage.getItem('recentProjects') || '[]');
-          recent.unshift({
-            id: data.projectId,
-            name: projectName,
-            createdAt: new Date().toISOString()
-          });
-          localStorage.setItem('recentProjects', JSON.stringify(recent.slice(0, 10)));
-          
-          window.location.href = data.url;
-        }
-      } catch (error) {
-        alert('Error creating project: ' + error.message);
-      }
-    }
-
-    // Load recent projects from localStorage
-    function loadRecentProjects() {
-      const recent = JSON.parse(localStorage.getItem('recentProjects') || '[]');
-      const list = document.getElementById('projects-list');
-      
-      if (recent.length === 0) {
-        list.innerHTML = '<p style="color:#6b7280;text-align:center;margin-top:20px">No recent projects</p>';
-        return;
-      }
-      
-      list.innerHTML = '<h2 style="margin-bottom:16px;font-size:18px">Recent Projects</h2>' +
-        recent.map(p => `
-          <div class="project-item">
-            <div>
-              <h3>${p.name}</h3>
-              <small>${new Date(p.createdAt).toLocaleDateString()}</small>
-            </div>
-            <a href="/project/${p.id}" class="project-link">Open →</a>
-          </div>
-        `).join('');
-    }
-    
-    loadRecentProjects();
-  </script>
-</body>
-</html>
-  <header class="app-header">
-    <div class="brand">
-      <div class="logo">A</div>
-      <div class="title">ArcSite — Project Navigator</div>
-    </div>
-    <div class="header-actions">
-      <div class="project-name">Project: Riverside Development</div>
-      <button class="btn primary">New Asset</button>
-      <!-- map upload control -->
-      <input id="map-upload" type="file" accept="image/*" style="display:none" />
-      <label for="map-upload" class="btn" title="Upload a site map image">Upload Map</label>
-      <div class="user">JS</div>
-    </div>
-  </header>
-
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <h2>Assets</h2>
-        <input id="search" type="search" placeholder="Search assets" aria-label="Search assets" />
+  <!-- ============ DASHBOARD VIEW ============ -->
+  <div id="dashboard-view" class="view" hidden>
+    <header class="dash-header">
+      <div class="dash-header-left">
+        <div class="header-logo">
+          <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+            <rect width="40" height="40" rx="6" fill="currentColor"/>
+            <path d="M11 29L20 11L29 29M14.5 23H25.5" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>
+          </svg>
+        </div>
+        <span class="header-app-name">ArcSite Studio</span>
       </div>
-
-      <div id="asset-list" class="asset-list" role="list"></div>
-
-      <div class="sidebar-footer">
-        <small>Data-driven hotspots • Edit <code>data.json</code></small>
+      <div class="dash-header-right">
+        <div class="theme-switcher" role="group" aria-label="Theme">
+          <button type="button" class="theme-btn active" data-set-theme="studio">Studio</button>
+          <button type="button" class="theme-btn" data-set-theme="blueprint">Blueprint</button>
+          <button type="button" class="theme-btn" data-set-theme="cad-dark">CAD Dark</button>
+        </div>
+        <div class="user-pill" id="dash-user-pill">
+          <div class="avatar" id="dash-avatar"></div>
+          <span id="dash-user-name"></span>
+          <button class="btn btn-ghost btn-sm" id="logout-btn">Logout</button>
+        </div>
       </div>
-    </aside>
-
-    <main class="workspace">
-      <section class="map-panel">
-        <div class="map-toolbar">
-          <div class="map-legend">Site Map</div>
-          <div class="map-controls">
-            <button id="toggle-edit" class="btn">Edit Mode</button>
-            <button id="export-json" class="btn">Export JSON</button>
-            <button class="btn">Zoom in</button>
-            <button class="btn">Zoom out</button>
+    </header>
+    <main class="dash-main">
+      <div class="dash-toolbar">
+        <div>
+          <h2 class="dash-heading">Your Projects</h2>
+          <p class="dash-subheading" id="project-count-label"></p>
+        </div>
+        <div class="dash-toolbar-actions">
+          <div class="search-box">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="text" id="project-search" placeholder="Search projects…">
           </div>
+          <button class="btn btn-primary" id="new-project-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            New Project
+          </button>
         </div>
-
-        <div id="map-container">
-          <!-- The site map SVG (scales responsively). Hotspots will be positioned with absolute coordinates over this container. -->
-          <img id="site-map" src="assets/site-map.svg" alt="Site Map" />
-
-          <!-- Hotspots are inserted here by app.js -->
-          <div id="hotspot-layer" aria-hidden="false"></div>
-
-          <!-- Reusable popup -->
-          <div id="popup" class="hidden" role="dialog" aria-live="polite"></div>
+      </div>
+      <div id="projects-grid" class="projects-grid"></div>
+      <div id="projects-empty" class="empty-state" hidden>
+        <div class="empty-icon">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         </div>
-
-        <!-- Simple inline editor shown when Edit Mode is active -->
-        <div id="editor-panel" class="editor-panel hidden" aria-hidden="true">
-          <h4>Asset editor</h4>
-          <div id="editor-content">
-            <div class="editor-row"><label>Title:</label><span id="ed-title"></span></div>
-            <div class="editor-row"><label>X:</label><input id="ed-x" type="text" /></div>
-            <div class="editor-row"><label>Y:</label><input id="ed-y" type="text" /></div>
-            <div class="editor-row"><label>W:</label><input id="ed-w" type="text" /></div>
-            <div class="editor-row"><label>H:</label><input id="ed-h" type="text" /></div>
-            <div class="editor-actions">
-              <button id="ed-save" class="btn primary">Save</button>
-              <button id="ed-nudge-left" class="btn">◀</button>
-              <button id="ed-nudge-right" class="btn">▶</button>
-              <button id="ed-nudge-up" class="btn">▲</button>
-              <button id="ed-nudge-down" class="btn">▼</button>
-            </div>
-          </div>
-        </div>
-
-        <p class="hint">Hover or click a building to view its documents.</p>
-      </section>
+        <h3>No projects yet</h3>
+        <p>Create your first architecture project to get started.</p>
+        <button class="btn btn-primary" id="empty-new-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Create your first project
+        </button>
+      </div>
     </main>
+    <!-- New Project Modal -->
+    <div id="new-project-modal" class="modal-overlay" hidden>
+      <div class="modal" style="max-width:440px">
+        <div class="modal-header">
+          <h3>New Project</h3>
+          <button class="modal-close" data-close>&times;</button>
+        </div>
+        <form id="new-project-form" class="modal-body">
+          <div class="form-group">
+            <label for="np-name">Project Name</label>
+            <input type="text" id="np-name" placeholder="e.g. Downtown Tower Complex" required>
+          </div>
+          <div class="form-group">
+            <label for="np-desc">Description <span class="optional">(optional)</span></label>
+            <textarea id="np-desc" placeholder="Brief description…" rows="3"></textarea>
+          </div>
+          <div id="np-error" class="form-error"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Project</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
-  <script src="app.js" defer></script>
+  <!-- ============ PROJECT VIEW ============ -->
+  <div id="project-view" class="view" hidden>
+    <!-- Project Header -->
+    <header class="proj-header">
+      <div class="proj-header-left">
+        <button class="btn btn-ghost btn-icon" id="back-to-dash" title="Back to Dashboard">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <h2 class="proj-title" id="proj-title" contenteditable="false"></h2>
+      </div>
+      <div class="proj-header-right">
+        <button class="btn btn-ghost btn-sm" id="smart-assist-btn" title="Extract exact labels & areas from PDF Site Plan (M)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          <span>Smart Assist</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="draw-poly-btn" title="Trace an angled polygon zone on the site map (P / D)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 18 21 6 21 2 8.5"/></svg>
+          <span>Draw Zone</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="magic-trace-btn" title="Click inside any plot, room, or roof to trace with Vector CAD / SlimSAM AI (T)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg>
+          <span>Trace Click</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="toggle-labels-btn" title="Fade or show asset badges on dense site plans (L)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span>Labels</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="schedule-btn" title="Site Area Schedule & Approval Status (K)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>
+          <span>Schedule</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="gallery-btn" title="Renders, Aerials & 3D Previews Gallery (G)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Gallery</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="import-folder-btn" title="Import an entire architecture project folder">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><path d="M12 11v6M9 14h6"/></svg>
+          <span>Import Folder</span>
+        </button>
+        <input type="file" id="folder-upload-input" webkitdirectory directory multiple hidden>
+        <button class="btn btn-ghost btn-sm" id="upload-map-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          <span>Upload Map</span>
+        </button>
+        <label class="toggle-pill" id="edit-mode-toggle">
+          <input type="checkbox" id="edit-mode-cb">
+          <span class="toggle-label">Edit</span>
+        </label>
+        <button class="btn btn-ghost btn-sm" id="present-mode-btn" title="Executive Client Presentation Mode">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          <span>Present</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="export-json-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Export</span>
+        </button>
+        <div class="theme-switcher theme-switcher-dark" role="group" aria-label="Theme">
+          <button type="button" class="theme-btn active" data-set-theme="studio" title="Architectural Studio">Studio</button>
+          <button type="button" class="theme-btn" data-set-theme="blueprint" title="Blueprint">Blueprint</button>
+          <button type="button" class="theme-btn" data-set-theme="cad-dark" title="CAD Darkroom">Dark</button>
+        </div>
+        <div class="avatar avatar-sm" id="proj-avatar"></div>
+      </div>
+    </header>
+    <!-- Project Body -->
+    <div class="proj-body">
+      <!-- Sidebar -->
+      <aside class="proj-sidebar" id="proj-sidebar">
+        <div class="sidebar-tabs" role="tablist">
+          <button type="button" class="sidebar-tab active" id="tab-assets-btn" data-sidebar-tab="assets">
+            Assets <span class="badge" id="asset-count-badge">0</span>
+          </button>
+          <button type="button" class="sidebar-tab" id="tab-files-btn" data-sidebar-tab="files">
+            Project Files <span class="badge" id="file-count-badge">0</span>
+          </button>
+        </div>
+        <div class="sidebar-search">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="asset-search" placeholder="Filter assets or files…">
+        </div>
+        <div id="file-cat-pills" class="file-cat-pills" hidden></div>
+        <div class="asset-list" id="asset-list"></div>
+        <div class="asset-list" id="project-files-list" hidden></div>
+        <div class="sidebar-footer">
+          <button class="btn btn-primary btn-full" id="add-asset-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Add Asset
+          </button>
+          <button class="btn btn-primary btn-full" id="upload-project-files-btn" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Upload Project Files
+          </button>
+        </div>
+      </aside>
+
+      <!-- Map Area -->
+      <div class="map-area" id="map-area">
+        <div class="map-toolbar" id="map-toolbar">
+          <button class="btn btn-ghost btn-icon btn-xs" id="zoom-out-btn" title="Zoom Out (-)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>
+          </button>
+          <span class="zoom-display" id="zoom-display">100%</span>
+          <button class="btn btn-ghost btn-icon btn-xs" id="zoom-in-btn" title="Zoom In (+)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button class="btn btn-ghost btn-xs" id="zoom-fit-btn" title="Fit Map (F)">Fit</button>
+          <button class="btn btn-ghost btn-xs" id="shortcuts-help-btn" title="Architecture Keyboard Shortcuts (?)">Keys ?</button>
+        </div>
+        <div class="map-viewport" id="map-viewport">
+          <div class="map-transform" id="map-transform">
+            <img class="map-image" id="map-image" alt="Site Map">
+            <svg class="polygon-layer" id="polygon-layer" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+            <div class="hotspot-layer" id="hotspot-layer"></div>
+          </div>
+        </div>
+        <!-- Polygon Drawing Floating Bar -->
+        <div class="poly-draw-bar" id="poly-draw-bar" hidden>
+          <span id="poly-draw-hint">Click plot corners on map (3+ points)</span>
+          <button type="button" class="btn btn-ghost btn-xs" id="poly-undo-btn">Undo</button>
+          <button type="button" class="btn btn-primary btn-xs" id="poly-finish-btn" disabled>Finish Zone</button>
+          <button type="button" class="btn btn-ghost btn-xs" id="poly-cancel-btn">Cancel</button>
+        </div>
+
+        <!-- Magic Trace Floating Bar -->
+        <div class="poly-draw-bar" id="magic-trace-bar" hidden>
+          <span id="magic-trace-hint">Click inside any plot, room, or roof to trace with Vector CAD / SlimSAM AI</span>
+          <button type="button" class="btn btn-ghost btn-xs" id="magic-trace-cancel-btn">Cancel</button>
+        </div>
+        <!-- Presentation Exit Pill -->
+        <div class="present-banner" id="present-banner" hidden>
+          <span>Presentation Mode</span>
+          <button type="button" class="btn btn-ghost btn-xs" id="present-schedule-btn">Area Schedule</button>
+          <button type="button" class="btn btn-ghost btn-xs" id="present-gallery-btn">Visual Gallery</button>
+          <button type="button" class="btn btn-primary btn-xs" id="exit-present-btn">Exit</button>
+        </div>
+        <!-- Mobile sidebar toggle -->
+        <button class="btn btn-primary btn-icon sidebar-toggle" id="sidebar-toggle" title="Toggle Sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+      </div>
+
+      <!-- Editor Panel (shown in edit mode when asset selected) -->
+      <aside class="editor-panel" id="editor-panel" hidden>
+        <div class="editor-panel-header">
+          <h3 id="editor-asset-title">Asset Editor</h3>
+          <button class="btn btn-ghost btn-icon btn-xs" id="close-editor">&times;</button>
+        </div>
+        <div class="editor-body">
+          <div class="editor-section">
+            <label class="editor-label">Position & Size</label>
+            <div class="editor-grid-4">
+              <div class="form-group compact">
+                <label>X%</label>
+                <input type="number" id="ed-x" step="0.1" min="0" max="100">
+              </div>
+              <div class="form-group compact">
+                <label>Y%</label>
+                <input type="number" id="ed-y" step="0.1" min="0" max="100">
+              </div>
+              <div class="form-group compact">
+                <label>W%</label>
+                <input type="number" id="ed-w" step="0.1" min="1" max="100">
+              </div>
+              <div class="form-group compact">
+                <label>H%</label>
+                <input type="number" id="ed-h" step="0.1" min="1" max="100">
+              </div>
+            </div>
+            <div class="nudge-grid">
+              <div></div>
+              <button class="btn btn-ghost btn-xs nudge-btn" data-dir="up">▲</button>
+              <div></div>
+              <button class="btn btn-ghost btn-xs nudge-btn" data-dir="left">◀</button>
+              <div class="nudge-center"></div>
+              <button class="btn btn-ghost btn-xs nudge-btn" data-dir="right">▶</button>
+              <div></div>
+              <button class="btn btn-ghost btn-xs nudge-btn" data-dir="down">▼</button>
+              <div></div>
+            </div>
+          </div>
+          <div class="editor-section">
+            <label class="editor-label">Icon</label>
+            <div class="icon-picker" id="icon-picker">
+              <button type="button" class="icon-opt" data-icon="🏢">🏢</button>
+              <button type="button" class="icon-opt" data-icon="🏛️">🏛️</button>
+              <button type="button" class="icon-opt" data-icon="💧">💧</button>
+              <button type="button" class="icon-opt" data-icon="🕌">🕌</button>
+              <button type="button" class="icon-opt" data-icon="🏫">🏫</button>
+              <button type="button" class="icon-opt" data-icon="🌉">🌉</button>
+              <button type="button" class="icon-opt" data-icon="🛣️">🛣️</button>
+              <button type="button" class="icon-opt" data-icon="🏗️">🏗️</button>
+              <button type="button" class="icon-opt" data-icon="🏭">🏭</button>
+              <button type="button" class="icon-opt" data-icon="🏥">🏥</button>
+              <button type="button" class="icon-opt" data-icon="🏦">🏦</button>
+              <button type="button" class="icon-opt" data-icon="🏪">🏪</button>
+            </div>
+          </div>
+          <div class="editor-section">
+            <label class="editor-label">Zone Details &amp; Approval</label>
+            <div class="form-group compact">
+              <label for="ed-title-input">Title</label>
+              <input type="text" id="ed-title-input" placeholder="Zone title">
+            </div>
+            <div class="form-row" style="gap:8px;">
+              <div class="form-group compact" style="flex:1;">
+                <label for="ed-area">Area (SQM)</label>
+                <input type="text" id="ed-area" placeholder="e.g. 5823 SQM">
+              </div>
+              <div class="form-group compact" style="flex:1;">
+                <label for="ed-status">Status</label>
+                <select id="ed-status">
+                  <option value="WIP">WIP</option>
+                  <option value="Review">For Review</option>
+                  <option value="Approved">Approved</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="editor-section">
+            <label class="editor-label">Shape</label>
+            <div class="shape-picker" id="shape-picker">
+              <button type="button" class="shape-opt" data-shape="rect">▬ Rect</button>
+              <button type="button" class="shape-opt" data-shape="circle">● Circle</button>
+              <button type="button" class="shape-opt" data-shape="bridge">⌒ Bridge</button>
+              <button type="button" class="shape-opt" data-shape="road">═ Road</button>
+              <button type="button" class="shape-opt" data-shape="polygon" style="grid-column:span 2;">⬠ Polygon Plot Boundary</button>
+            </div>
+            <button type="button" class="btn btn-ghost btn-xs" id="snap-poly-btn" title="Auto-align this zone using its detected label or current position">Auto-Align to Current Position</button>
+            <button type="button" class="btn btn-ghost btn-xs" id="pick-align-btn" title="Click inside the true plot, room, or roof on the map to align this selected asset">Click Shape on Map to Align</button>
+            <button type="button" class="btn btn-ghost btn-xs" id="redraw-poly-btn" hidden>Redraw Polygon Boundary</button>
+            <small class="form-hint" style="display:block;margin-top:4px;opacity:0.75;">Tip: In Edit Mode, drag corners, click an edge to add a corner, or right-click a corner to remove.</small>
+          </div>
+          <div class="editor-actions">
+            <button class="btn btn-primary btn-full" id="save-asset-btn">Save Changes</button>
+            <button class="btn btn-danger btn-full btn-outline" id="delete-asset-btn">Delete Asset</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Smart Assist Panel (Deterministic PDF/CAD Label Extraction) -->
+      <aside class="smart-assist-panel" id="smart-assist-panel" hidden>
+        <div class="editor-panel-header">
+          <h3>Smart PDF Site Plan Assist</h3>
+          <button class="btn btn-ghost btn-icon btn-xs" id="close-smart-assist">&times;</button>
+        </div>
+        <div class="editor-body" id="smart-assist-body">
+          <div class="smart-assist-summary" id="smart-assist-summary"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-ghost btn-xs" id="sa-rescan-btn">Re-scan Site PDF</button>
+            <button type="button" class="btn btn-ghost btn-xs" id="sa-resnap-btn" title="Re-align existing map assets to exact map boundaries">Align All Shapes</button>
+            <button type="button" class="btn btn-ghost btn-xs" id="sa-select-all-btn">Toggle All</button>
+            <button type="button" class="btn btn-ghost btn-xs" id="sa-clear-all-btn" style="color:var(--danger);">Clear Zones</button>
+          </div>
+          <div id="smart-assist-list" class="smart-assist-list"></div>
+          <div class="editor-actions" style="padding-top:10px;">
+            <button type="button" class="btn btn-primary btn-full" id="sa-apply-btn">Create Selected Zones</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Document Popup (positioned absolutely near hotspot) -->
+    <div id="doc-popup" class="doc-popup" hidden>
+      <div class="doc-popup-header">
+        <span class="doc-popup-icon" id="doc-popup-icon"></span>
+        <div style="flex:1;min-width:0;">
+          <h4 id="doc-popup-title"></h4>
+          <div id="doc-popup-sub" class="doc-popup-sub"></div>
+        </div>
+        <button class="btn btn-ghost btn-icon btn-xs doc-popup-close" id="doc-popup-close">&times;</button>
+      </div>
+      <div class="doc-popup-body" id="doc-popup-body"></div>
+      <div class="doc-popup-footer">
+        <button type="button" class="btn btn-danger btn-outline btn-sm" id="doc-popup-delete" title="Delete zone from map">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+          Delete
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" id="doc-popup-align" title="Select a shape on the map to align this asset">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 18 21 6 21 2 8.5"/></svg>
+          Align Shape
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" id="doc-popup-upload">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Upload File
+        </button>
+      </div>
+    </div>
+
+    <!-- Add Asset Modal -->
+    <div id="add-asset-modal" class="modal-overlay" hidden>
+      <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+          <h3>Add New Asset</h3>
+          <button class="modal-close" data-close>&times;</button>
+        </div>
+        <form id="add-asset-form" class="modal-body">
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label for="aa-title">Asset / Zone Title</label>
+              <input type="text" id="aa-title" placeholder="e.g. Block B2 - Main Office" required>
+            </div>
+            <div class="form-group" style="width:140px">
+              <label for="aa-area">Area <span class="optional">(optional)</span></label>
+              <input type="text" id="aa-area" placeholder="5823 SQM">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="aa-status">Approval Status</label>
+            <select id="aa-status">
+              <option value="WIP">Work in Progress (WIP)</option>
+              <option value="Review">For Review</option>
+              <option value="Approved">Approved</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Icon</label>
+            <div class="icon-picker" id="aa-icon-picker">
+              <button type="button" class="icon-opt selected" data-icon="🏢">🏢</button>
+              <button type="button" class="icon-opt" data-icon="🏛️">🏛️</button>
+              <button type="button" class="icon-opt" data-icon="💧">💧</button>
+              <button type="button" class="icon-opt" data-icon="🕌">🕌</button>
+              <button type="button" class="icon-opt" data-icon="🏫">🏫</button>
+              <button type="button" class="icon-opt" data-icon="🌉">🌉</button>
+              <button type="button" class="icon-opt" data-icon="🛣️">🛣️</button>
+              <button type="button" class="icon-opt" data-icon="🏗️">🏗️</button>
+              <button type="button" class="icon-opt" data-icon="🏭">🏭</button>
+              <button type="button" class="icon-opt" data-icon="🏥">🏥</button>
+              <button type="button" class="icon-opt" data-icon="🏦">🏦</button>
+              <button type="button" class="icon-opt" data-icon="🏪">🏪</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Shape</label>
+            <div class="shape-picker" id="aa-shape-picker">
+              <button type="button" class="shape-opt selected" data-shape="rect">▬ Rect</button>
+              <button type="button" class="shape-opt" data-shape="circle">● Circle</button>
+              <button type="button" class="shape-opt" data-shape="bridge">⌒ Bridge</button>
+              <button type="button" class="shape-opt" data-shape="road">═ Road</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Pre-create Categories</label>
+            <div class="checkbox-row">
+              <label class="checkbox-label"><input type="checkbox" value="Architecture" checked> Architecture</label>
+              <label class="checkbox-label"><input type="checkbox" value="Structural" checked> Structural</label>
+              <label class="checkbox-label"><input type="checkbox" value="MEP"> MEP</label>
+              <label class="checkbox-label"><input type="checkbox" value="General"> General</label>
+            </div>
+          </div>
+          <div id="aa-error" class="form-error"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Asset</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- File Upload Modal -->
+    <div id="upload-modal" class="modal-overlay" hidden>
+      <div class="modal" style="max-width:500px">
+        <div class="modal-header">
+          <h3>Upload Files</h3>
+          <button class="modal-close" data-close>&times;</button>
+        </div>
+        <div class="modal-body" id="upload-modal-body">
+          <div class="drop-zone" id="drop-zone">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <p>Drag & drop files here</p>
+            <span class="drop-zone-or">or</span>
+            <button type="button" class="btn btn-ghost btn-sm" id="browse-files-btn">Browse Files</button>
+            <input type="file" id="file-input" multiple hidden>
+          </div>
+          <div id="upload-file-list" class="upload-file-list"></div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label for="upload-category">Category</label>
+              <select id="upload-category">
+                <option value="auto">Auto-detect (by filename/folder)</option>
+                <option value="Site Plan">Site Plan</option>
+                <option value="Views & 3D">Views &amp; 3D</option>
+                <option value="Working CAD">Working CAD</option>
+                <option value="Presentations">Presentations</option>
+                <option value="References">References</option>
+                <option value="Architecture">Architecture</option>
+                <option value="Structural">Structural</option>
+                <option value="MEP">MEP</option>
+                <option value="General">General</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1">
+              <label for="upload-label">Label</label>
+              <input type="text" id="upload-label" placeholder="Auto from filename">
+            </div>
+          </div>
+          <div id="upload-progress" class="upload-progress" hidden>
+            <div class="progress-bar"><div class="progress-fill" id="upload-progress-fill"></div></div>
+            <span class="progress-text" id="upload-progress-text">Uploading…</span>
+          </div>
+          <div id="upload-error" class="form-error"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+            <button type="button" class="btn btn-primary" id="do-upload-btn" disabled>Upload</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Executive Schedule & Audit Modal -->
+    <div id="schedule-modal" class="modal-overlay" hidden>
+      <div class="modal" style="max-width:780px">
+        <div class="modal-header">
+          <h3>Site Schedule &amp; Approval Register</h3>
+          <button class="modal-close" data-close>&times;</button>
+        </div>
+        <div class="modal-body" id="schedule-modal-body" style="max-height:76vh;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+    <!-- Visual Renders & 3D Gallery Modal -->
+    <div id="gallery-modal" class="modal-overlay" hidden>
+      <div class="modal" style="max-width:920px">
+        <div class="modal-header">
+          <h3>Project Renders, Aerials &amp; 3D Previews</h3>
+          <button class="modal-close" data-close>&times;</button>
+        </div>
+        <div class="modal-body" id="gallery-modal-body" style="max-height:78vh;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+    <!-- Upload Map Modal -->
+    <div id="upload-map-modal" class="modal-overlay" hidden>
+      <div class="modal" style="max-width:440px">
+        <div class="modal-header">
+          <h3>Upload Site Map</h3>
+          <button class="modal-close" data-close>&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="drop-zone" id="map-drop-zone">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            <p>Drop a PDF Site Plan, PNG/JPG/TIFF, or SVG</p>
+            <button type="button" class="btn btn-ghost btn-sm" id="browse-map-btn">Browse</button>
+            <input type="file" id="map-file-input" accept="image/*,.svg,.pdf,.tif,.tiff" hidden>
+          </div>
+          <div id="map-upload-status" style="font-size:12.5px;color:var(--text-secondary);margin-bottom:8px;"></div>
+          <div id="map-upload-error" class="form-error"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ FILE VIEWER OVERLAY ============ -->
+  <div id="viewer-overlay" class="viewer-overlay" hidden>
+    <div class="viewer-topbar">
+      <span class="viewer-filename" id="viewer-filename"></span>
+      <div class="viewer-topbar-actions">
+        <button class="btn btn-ghost btn-sm" id="viewer-download">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download
+        </button>
+        <button class="btn btn-ghost btn-icon" id="viewer-close">&times;</button>
+      </div>
+    </div>
+    <div class="viewer-content" id="viewer-content"></div>
+    <!-- PDF controls -->
+    <div class="viewer-pdf-controls" id="viewer-pdf-controls" hidden>
+      <button class="btn btn-ghost btn-sm" id="pdf-prev">← Prev</button>
+      <span id="pdf-page-info">Page 1 / 1</span>
+      <button class="btn btn-ghost btn-sm" id="pdf-next">Next →</button>
+      <button class="btn btn-ghost btn-sm" id="pdf-zoom-out">−</button>
+      <span id="pdf-zoom-info">100%</span>
+      <button class="btn btn-ghost btn-sm" id="pdf-zoom-in">+</button>
+    </div>
+  </div>
+
+  <!-- CAD & Architecture Keyboard Shortcuts Modal -->
+  <div id="shortcuts-modal" class="modal-overlay" hidden>
+    <div class="modal" style="max-width:620px">
+      <div class="modal-header">
+        <h3>CAD &amp; Architecture Keyboard Shortcuts</h3>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="shortcuts-grid">
+          <div class="shortcuts-group">
+            <h4>Tools &amp; Tracing</h4>
+            <div class="shortcut-row"><span>Select tool / Cancel active tool</span><kbd>V</kbd> / <kbd>Esc</kbd></div>
+            <div class="shortcut-row"><span>Toggle Edit Mode</span><kbd>E</kbd></div>
+            <div class="shortcut-row"><span>Draw Zone (polygon corners)</span><kbd>P</kbd> / <kbd>D</kbd></div>
+            <div class="shortcut-row"><span>Undo last polygon corner</span><kbd>U</kbd> / <kbd>Ctrl+Z</kbd></div>
+            <div class="shortcut-row"><span>Finish drawn polygon (3+ pts)</span><kbd>Enter</kbd></div>
+            <div class="shortcut-row"><span>Trace Click (Vector CAD / SlimSAM)</span><kbd>T</kbd></div>
+            <div class="shortcut-row"><span>Add New Asset</span><kbd>N</kbd></div>
+          </div>
+          <div class="shortcuts-group">
+            <h4>Selected Asset Alignment</h4>
+            <div class="shortcut-row"><span>Click Shape on Map to Align selected</span><kbd>A</kbd></div>
+            <div class="shortcut-row"><span>Auto-Align selected to current pos</span><kbd>S</kbd></div>
+            <div class="shortcut-row"><span>Nudge selected asset (Edit Mode)</span><kbd>Arrows</kbd></div>
+            <div class="shortcut-row"><span>Fine step 1.5% nudge (Edit Mode)</span><kbd>Shift+Arrows</kbd></div>
+            <div class="shortcut-row"><span>Cycle Next / Previous asset</span><kbd>]</kbd> / <kbd>[</kbd></div>
+            <div class="shortcut-row"><span>Delete selected asset (Edit Mode)</span><kbd>Del</kbd></div>
+          </div>
+          <div class="shortcuts-group">
+            <h4>Map &amp; Viewport</h4>
+            <div class="shortcut-row"><span>Zoom In / Zoom Out</span><kbd>+</kbd> / <kbd>-</kbd></div>
+            <div class="shortcut-row"><span>Fit Map to Screen</span><kbd>F</kbd> / <kbd>0</kbd></div>
+            <div class="shortcut-row"><span>Pan Viewport (when not nudging)</span><kbd>Arrows</kbd></div>
+            <div class="shortcut-row"><span>Fade / Show Dense Asset Labels</span><kbd>L</kbd></div>
+          </div>
+          <div class="shortcuts-group">
+            <h4>Panels &amp; Themes</h4>
+            <div class="shortcut-row"><span>Smart Assist Panel</span><kbd>M</kbd></div>
+            <div class="shortcut-row"><span>Area Schedule &amp; Approvals</span><kbd>K</kbd></div>
+            <div class="shortcut-row"><span>Visual Gallery</span><kbd>G</kbd></div>
+            <div class="shortcut-row"><span>Studio / Blueprint / Dark theme</span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></div>
+            <div class="shortcut-row"><span>Toggle this Shortcuts sheet</span><kbd>?</kbd></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation -->
+  <div id="confirm-modal" class="modal-overlay" hidden>
+    <div class="modal" style="max-width:380px">
+      <div class="modal-header">
+        <h3 id="confirm-title">Confirm</h3>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-message"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-yes">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/dashboard.js"></script>
+  <script src="/js/map.js"></script>
+  <script src="/js/viewers.js"></script>
+  <script src="/js/slimsam-segmenter.js"></script>
+  <script src="/js/smart-assist.js"></script>
+  <script src="/js/project.js"></script>
 </body>
 </html>
