@@ -17,8 +17,17 @@
     processor: null,
     device: 'wasm',
     loadingPromise: null,
+    embedPromise: null,
+    embedSrc: null,
+    sessionQueue: Promise.resolve(),
     cachedEmbed: null, // { src, rawImage, rawW, rawH, imageEmbeddings, originalSizes, reshapedInputSizes }
   };
+
+  function enqueueSession(fn) {
+    const next = state.sessionQueue.then(fn, fn);
+    state.sessionQueue = next.catch(() => {});
+    return next;
+  }
 
   async function detectDevice() {
     if (typeof navigator !== 'undefined' && navigator.gpu) {
@@ -41,6 +50,9 @@
         if (onStatus) onStatus('Checking WebGPU support & loading Transformers.js…');
         const lib = await import(TRANSFORMERS_ESM);
         lib.env.allowLocalModels = false;
+        if (!self.crossOriginIsolated && lib.env.backends?.onnx?.wasm) {
+          lib.env.backends.onnx.wasm.numThreads = 1;
+        }
         state.lib = lib;
 
         const preferred = await detectDevice();
@@ -97,24 +109,41 @@
     if (state.cachedEmbed && state.cachedEmbed.src === src) {
       return state.cachedEmbed;
     }
-    const { lib, model, processor, device } = await ensureModel(onStatus);
-    if (onStatus) onStatus(`Encoding map image with SlimSAM (${device.toUpperCase()})…`);
+    if (state.embedPromise && state.embedSrc === src) {
+      if (onStatus) onStatus('Encoding map image with SlimSAM…');
+      return state.embedPromise;
+    }
 
-    const { canvas, w, h } = rasterizeImageToCanvas(imgEl, 1024);
-    const rawImage = lib.RawImage.fromCanvas(canvas);
-    const processed = await processor(rawImage);
-    const imageEmbeddings = await model.get_image_embeddings(processed);
+    state.embedSrc = src;
+    state.embedPromise = enqueueSession(async () => {
+      if (state.cachedEmbed && state.cachedEmbed.src === src) {
+        return state.cachedEmbed;
+      }
+      const { lib, model, processor, device } = await ensureModel(onStatus);
+      if (onStatus) onStatus(`Encoding map image with SlimSAM (${device.toUpperCase()})…`);
 
-    state.cachedEmbed = {
-      src,
-      rawImage,
-      rawW: w,
-      rawH: h,
-      imageEmbeddings,
-      originalSizes: processed.original_sizes,
-      reshapedInputSizes: processed.reshaped_input_sizes,
-    };
-    return state.cachedEmbed;
+      const { canvas, w, h } = rasterizeImageToCanvas(imgEl, 1024);
+      const rawImage = lib.RawImage.fromCanvas(canvas);
+      const processed = await processor(rawImage);
+      const imageEmbeddings = await model.get_image_embeddings(processed);
+
+      state.cachedEmbed = {
+        src,
+        rawImage,
+        rawW: w,
+        rawH: h,
+        imageEmbeddings,
+        originalSizes: processed.original_sizes,
+        reshapedInputSizes: processed.reshaped_input_sizes,
+      };
+      return state.cachedEmbed;
+    }).finally(() => {
+      if (state.embedSrc === src) {
+        state.embedPromise = null;
+      }
+    });
+
+    return state.embedPromise;
   }
 
   function extractBestBinaryMask(masksTensor, iouTensor, w, h) {
@@ -168,22 +197,25 @@
     const px = Math.max(0, Math.min(embed.rawW - 1, Math.round((xPct / 100) * embed.rawW)));
     const py = Math.max(0, Math.min(embed.rawH - 1, Math.round((yPct / 100) * embed.rawH)));
 
-    const pointInputs = await state.processor(embed.rawImage, {
-      input_points: [[[px, py]]],
-      input_labels: [[1]],
-    });
+    const { outputs, masks } = await enqueueSession(async () => {
+      const pointInputs = await state.processor(embed.rawImage, {
+        input_points: [[[px, py]]],
+        input_labels: [[1]],
+      });
 
-    const outputs = await state.model({
-      ...embed.imageEmbeddings,
-      input_points: pointInputs.input_points,
-      input_labels: pointInputs.input_labels,
-    });
+      const out = await state.model({
+        ...embed.imageEmbeddings,
+        input_points: pointInputs.input_points,
+        input_labels: pointInputs.input_labels,
+      });
 
-    const masks = await state.processor.post_process_masks(
-      outputs.pred_masks,
-      embed.originalSizes,
-      embed.reshapedInputSizes
-    );
+      const m = await state.processor.post_process_masks(
+        out.pred_masks,
+        embed.originalSizes,
+        embed.reshapedInputSizes
+      );
+      return { outputs: out, masks: m };
+    });
 
     const best = extractBestBinaryMask(masks, outputs.iou_scores, embed.rawW, embed.rawH);
     if (!best) return null;
@@ -204,6 +236,8 @@
 
   function clearCache() {
     state.cachedEmbed = null;
+    state.embedPromise = null;
+    state.embedSrc = null;
   }
 
   function isReady() {
