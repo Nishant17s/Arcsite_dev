@@ -152,10 +152,11 @@
 
   /* ========================================================================
      Shape-Preserving Building & Parcel Consolidator
-     - NEVER replaces complex polygons with 4-point bounding boxes
+     - Merges complementary triangulated quads into full 4-corner rectangles
+     - NEVER leaves warehouse bays cut in half diagonally as triangles
      - Deduplicates overlapping identical fills & strokes (IoU > 0.80)
      - Preserves exact multi-vertex L-shapes, stepped footprints, angled bays
-     - Groups only touching roof facets without merging separate buildings
+     - Keeps separate buildings across roads and setbacks distinct
      ======================================================================== */
   function clusterBuildingPolys(polys) {
     if (!Array.isArray(polys) || polys.length <= 1) return polys || [];
@@ -164,18 +165,132 @@
     const others = polys.filter((p) => p.category !== 'building');
 
     const bboxIoU = (b1, b2) => {
-      const x1 = Math.max(parseFloat(b1.x), parseFloat(b2.x));
-      const y1 = Math.max(parseFloat(b1.y), parseFloat(b2.y));
-      const x2 = Math.min(parseFloat(b1.x) + parseFloat(b1.w), parseFloat(b2.x) + parseFloat(b2.w));
-      const y2 = Math.min(parseFloat(b1.y) + parseFloat(b1.h), parseFloat(b2.y) + parseFloat(b2.h));
+      const bx1 = parseFloat(b1.bbox?.x || b1.x);
+      const by1 = parseFloat(b1.bbox?.y || b1.y);
+      const bw1 = parseFloat(b1.bbox?.w || b1.w);
+      const bh1 = parseFloat(b1.bbox?.h || b1.h);
+      const bx2 = parseFloat(b2.bbox?.x || b2.x);
+      const by2 = parseFloat(b2.bbox?.y || b2.y);
+      const bw2 = parseFloat(b2.bbox?.w || b2.w);
+      const bh2 = parseFloat(b2.bbox?.h || b2.h);
+
+      const x1 = Math.max(bx1, bx2);
+      const y1 = Math.max(by1, by2);
+      const x2 = Math.min(bx1 + bw1, bx2 + bw2);
+      const y2 = Math.min(by1 + bh1, by2 + bh2);
       const interW = Math.max(0, x2 - x1);
       const interH = Math.max(0, y2 - y1);
       const interArea = interW * interH;
-      const area1 = parseFloat(b1.w) * parseFloat(b1.h);
-      const area2 = parseFloat(b2.w) * parseFloat(b2.h);
+      const area1 = bw1 * bh1;
+      const area2 = bw2 * bh2;
       const unionArea = area1 + area2 - interArea;
       return unionArea > 0 ? interArea / unionArea : 0;
     };
+
+    // 1. Merge complementary triangulated quads (where 2 or more triangles share a bounding box)
+    const afterTriMerge = [];
+    const usedTriangles = new Set();
+
+    for (let i = 0; i < buildings.length; i++) {
+      if (usedTriangles.has(i)) continue;
+      const b1 = buildings[i];
+
+      if (b1.polygon && b1.polygon.length === 3) {
+        const partners = [];
+        for (let j = i + 1; j < buildings.length; j++) {
+          if (usedTriangles.has(j)) continue;
+          const b2 = buildings[j];
+          if (b2.polygon && b2.polygon.length === 3 && bboxIoU(b1, b2) > 0.70) {
+            partners.push(j);
+          }
+        }
+
+        if (partners.length > 0) {
+          usedTriangles.add(i);
+          partners.forEach((pIdx) => usedTriangles.add(pIdx));
+
+          const allB = [b1, ...partners.map((pIdx) => buildings[pIdx])];
+          let minX = 100, minY = 100, maxX = 0, maxY = 0;
+          for (const b of allB) {
+            const bx = parseFloat(b.bbox.x);
+            const by = parseFloat(b.bbox.y);
+            const bw = parseFloat(b.bbox.w);
+            const bh = parseFloat(b.bbox.h);
+            if (bx < minX) minX = bx;
+            if (by < minY) minY = by;
+            if (bx + bw > maxX) maxX = bx + bw;
+            if (by + bh > maxY) maxY = by + bh;
+          }
+
+          minX = Math.round(minX * 100) / 100;
+          minY = Math.round(minY * 100) / 100;
+          maxX = Math.round(maxX * 100) / 100;
+          maxY = Math.round(maxY * 100) / 100;
+
+          const rectPoly = [
+            [minX, minY],
+            [maxX, minY],
+            [maxX, maxY],
+            [minX, maxY],
+          ];
+
+          const totalArea = allB.reduce((sum, b) => sum + (b.area || 0), 0);
+
+          afterTriMerge.push({
+            polygon: rectPoly,
+            bbox: {
+              x: minX.toFixed(1) + '%',
+              y: minY.toFixed(1) + '%',
+              w: Math.max(2.5, maxX - minX).toFixed(1) + '%',
+              h: Math.max(2.5, maxY - minY).toFixed(1) + '%',
+            },
+            area: Math.max(totalArea, (maxX - minX) * (maxY - minY)),
+            solidity: 1.0,
+            category: 'building',
+            fillColor: b1.fillColor || allB.find((b) => b.fillColor)?.fillColor || null,
+            source: 'vector-pdf',
+          });
+          continue;
+        } else if (b1.solidity < 0.65 && b1.area > 20) {
+          // Single right triangle representing a warehouse bay: expand to full 4-corner rectangle
+          usedTriangles.add(i);
+          const bx = parseFloat(b1.bbox.x);
+          const by = parseFloat(b1.bbox.y);
+          const bw = parseFloat(b1.bbox.w);
+          const bh = parseFloat(b1.bbox.h);
+          const minX = Math.round(bx * 100) / 100;
+          const minY = Math.round(by * 100) / 100;
+          const maxX = Math.round((bx + bw) * 100) / 100;
+          const maxY = Math.round((by + bh) * 100) / 100;
+
+          const rectPoly = [
+            [minX, minY],
+            [maxX, minY],
+            [maxX, maxY],
+            [minX, maxY],
+          ];
+
+          afterTriMerge.push({
+            polygon: rectPoly,
+            bbox: {
+              x: minX.toFixed(1) + '%',
+              y: minY.toFixed(1) + '%',
+              w: Math.max(2.5, maxX - minX).toFixed(1) + '%',
+              h: Math.max(2.5, maxY - minY).toFixed(1) + '%',
+            },
+            area: (maxX - minX) * (maxY - minY),
+            solidity: 1.0,
+            category: 'building',
+            fillColor: b1.fillColor || null,
+            source: 'vector-pdf',
+          });
+          continue;
+        }
+      }
+
+      usedTriangles.add(i);
+      afterTriMerge.push(b1);
+    }
 
     const isContained = (pSmall, pLarge) => {
       if (pSmall.area >= pLarge.area * 0.85) return false;
@@ -192,10 +307,10 @@
       return sMinX >= lMinX && sMaxX <= lMaxX && sMinY >= lMinY && sMaxY <= lMaxY;
     };
 
-    // 1. Deduplicate near-identical polygons (fill + stroke pairs)
+    // 2. Deduplicate near-identical polygons (fill + stroke pairs)
     const dedupedBuildings = [];
-    for (const b of buildings) {
-      const dupeIdx = dedupedBuildings.findIndex((existing) => bboxIoU(existing.bbox, b.bbox) > 0.80);
+    for (const b of afterTriMerge) {
+      const dupeIdx = dedupedBuildings.findIndex((existing) => bboxIoU(existing, b) > 0.80);
       if (dupeIdx >= 0) {
         const existing = dedupedBuildings[dupeIdx];
         if ((b.polygon?.length || 0) > (existing.polygon?.length || 0) || (b.fillColor && !existing.fillColor)) {
@@ -206,7 +321,7 @@
       }
     }
 
-    // 2. Remove interior sub-patches (skylights, internal hatch quads)
+    // 3. Remove interior sub-patches (skylights, internal hatch quads)
     const filteredBuildings = dedupedBuildings.filter((b, idx) => {
       for (let j = 0; j < dedupedBuildings.length; j++) {
         if (idx === j) continue;
@@ -215,70 +330,8 @@
       return true;
     });
 
-    // 3. Merge touching roof facets that share an edge
-    const mergeSharedEdge = (p1, p2) => {
-      const poly1 = p1.polygon;
-      const poly2 = p2.polygon;
-      if (!poly1 || !poly2 || poly1.length < 3 || poly2.length < 3) return null;
-
-      let sharedCount = 0;
-      for (const pt1 of poly1) {
-        for (const pt2 of poly2) {
-          if (Math.hypot(pt1[0] - pt2[0], pt1[1] - pt2[1]) < 0.35) {
-            sharedCount++;
-            break;
-          }
-        }
-      }
-
-      // If they share 2 or more vertices along an edge and are similarly colored
-      if (sharedCount >= 2) {
-        const allPts = poly1.concat(poly2);
-        const simp = cleanPolyPct(allPts, 0.35);
-        if (simp.length >= 4) {
-          const info = bboxFromPolyPct(simp);
-          const area = polygonAreaPct(simp);
-          return {
-            polygon: simp,
-            bbox: info.bbox,
-            area,
-            solidity: area / Math.max(0.01, info.wNum * info.hNum),
-            category: 'building',
-            fillColor: p1.fillColor || p2.fillColor,
-            source: 'vector-pdf',
-          };
-        }
-      }
-      return null;
-    };
-
-    let consolidated = [...filteredBuildings];
-    let changed = true;
-    let passes = 0;
-    while (changed && passes < 3) {
-      changed = false;
-      passes++;
-      const next = [];
-      const used = new Set();
-      for (let i = 0; i < consolidated.length; i++) {
-        if (used.has(i)) continue;
-        let mergedPoly = consolidated[i];
-        for (let j = i + 1; j < consolidated.length; j++) {
-          if (used.has(j)) continue;
-          const merged = mergeSharedEdge(mergedPoly, consolidated[j]);
-          if (merged) {
-            mergedPoly = merged;
-            used.add(j);
-            changed = true;
-          }
-        }
-        next.push(mergedPoly);
-      }
-      consolidated = next;
-    }
-
-    // ALWAYS return exact polygon vertices — NEVER replace with 4-corner bounding boxes!
-    return [...consolidated, ...others];
+    // ALWAYS return exact polygon vertices — NEVER replace L-shapes or multi-vertex complexes!
+    return [...filteredBuildings, ...others];
   }
 
   /* ========================================================================
