@@ -21,6 +21,13 @@ function normalizeShape(val) {
   return VALID_SHAPES.has(s) ? s : 'rect';
 }
 
+function sanitizeIcon(val) {
+  const str = sanitizeString(val, 10);
+  if (!str) return 'BLDG';
+  const clean = str.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF]/g, '').trim();
+  return clean || 'BLDG';
+}
+
 function sanitizePolygon(raw) {
   if (!raw) return null;
   let arr = raw;
@@ -73,7 +80,7 @@ router.post('/:id/assets', validateProjectId, requireProjectAccess, (req, res, n
       id,
       project_id: req.params.id,
       title,
-      icon: sanitizeString(req.body.icon, 10) || '🏢',
+      icon: sanitizeIcon(req.body.icon),
       shape: polygon ? 'polygon' : normalizeShape(req.body.shape),
       x: sanitizeString(req.body.x, 20) || '10%',
       y: sanitizeString(req.body.y, 20) || '10%',
@@ -114,7 +121,7 @@ router.post('/:id/assets/batch', validateProjectId, requireProjectAccess, (req, 
           id: uuidv4(),
           project_id: req.params.id,
           title,
-          icon: sanitizeString(item.icon, 10) || '🏢',
+          icon: sanitizeIcon(item.icon),
           shape: polygon ? 'polygon' : normalizeShape(item.shape),
           x: sanitizeString(item.x, 20) || '10%',
           y: sanitizeString(item.y, 20) || '10%',

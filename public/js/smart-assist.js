@@ -11,39 +11,40 @@
   const NOISE_ONLY_RE = /^[\d.,+\-*/°'"()[\]\s:;%=#_]+$/;
   const AREA_RE = /(\d[\d,.]*\s*(?:SQ\.?\s*M|SQM|M2|SQ\.?\s*FT|SQFT|ACRES?|HECTARES?|HA)\b)/i;
   const NOISE_TERMS_RE = /\b(HIRANANDANI|INDUSTRIAL\s*PARKS|GROUND\s*COVERAGE|TOTAL\s*PLOT\s*AREA|OVERALL\s*SITE\s*AREA|DEVELOPMENT\s*DETAILS|LAND\s*BREAKUP|OPTION\s*[-0-9]+|REVISION|SCALE\s*1\s*:|SHEET\s*\d+|DRAWING\s*NO|AS\s*PER\s*THE\s*PLINE|PATRA|PLINE|\bLINE\b|ALL\s*DIMENSIONS|DO\s*NOT\s*SCALE|PARTICULARS|DESCRIPTION|PERCENTAGE|S\.?NO\.?|NORTH|LEGEND|CLIENT|ARCHITECT|CONSULTANT|APPROVED|CHECKED|DRAWN)\b/i;
+  const ROAD_DIM_RE = /\b(?:\d+(\.\d+)?\s*M(?:TR)?\s*(?:WIDE)?\s*ROAD|\d+(\.\d+)?\s*M(?:TR)?\s*WIDE|WIDE\s*ROAD|INTERNAL\s*ROAD|ROAD\s*WIDTH|\d+\.?\d*\s*M\s*WIDE)\b/i;
   const MATH_EQ_RE = /=|\b\d+[\d,.]*\s*=\s*[\d,.]*%|\b\d+[\d,.]*%\b/i;
   const STOPWORDS_RE = /^(?:AS|PER|THE|OF|AND|BY|FOR|IN|AT|TO|FROM|WITH|ON|A|AN|IS|ARE|LINE|PLINE|PATRA|OPTION|REV|REVISION|NO|GROUND|COVERAGE|SQMT|SQM|SQFT|ACRE|ACRES|PERCENT|POR|DETAILS)$/i;
 
   function classifyLabel(text) {
     const u = text.toUpperCase();
     if (/\b(STP|SEWAGE|WTP|SUMP|TANK|WATER)\b/.test(u)) {
-      return { zone_type: 'utility', icon: '💧', shape: 'circle' };
+      return { zone_type: 'utility', icon: 'UTIL', shape: 'circle' };
     }
     if (/\b(OSR|PARK|GARDEN|LANDSCAPE|LAWN|GREEN)\b/.test(u)) {
-      return { zone_type: 'landscape', icon: '🌳', shape: 'rect' };
+      return { zone_type: 'landscape', icon: 'LAND', shape: 'rect' };
     }
     if (/\b(METRO|BRIDGE|FLYOVER|VIADUCT|RAIL)\b/.test(u)) {
-      return { zone_type: 'transit', icon: '🌉', shape: 'bridge' };
+      return { zone_type: 'transit', icon: 'METRO', shape: 'bridge' };
     }
     if (/\b(ROAD|STREET|AVENUE|HIGHWAY|LANE|DRIVEWAY|ENTRY|EXIT|PATH)\b/.test(u)) {
-      return { zone_type: 'road', icon: '🛣️', shape: 'road' };
+      return { zone_type: 'road', icon: 'ROAD', shape: 'road' };
     }
     if (/\b(SECURITY|CABIN|GATE|CHECKPOST|GUARD)\b/.test(u)) {
-      return { zone_type: 'utility', icon: '🛡️', shape: 'rect' };
+      return { zone_type: 'utility', icon: 'UTIL', shape: 'rect' };
     }
     if (/\b(SUB\s*STATION|TRANSFORMER|UG\s*SUMP|PUMP\s*ROOM|ELECTRICAL)\b/.test(u)) {
-      return { zone_type: 'utility', icon: '⚡', shape: 'rect' };
+      return { zone_type: 'utility', icon: 'UTIL', shape: 'rect' };
     }
     if (/\b(TEMPLE|MOSQUE|CHURCH|CHAPEL|SHRINE)\b/.test(u)) {
-      return { zone_type: 'civic', icon: '🕌', shape: 'rect' };
+      return { zone_type: 'civic', icon: 'CIVIC', shape: 'rect' };
     }
     if (/\b(ADMIN|SCHOOL|HOSPITAL|HOSTEL|CLINIC|CANTEEN)\b/.test(u)) {
-      return { zone_type: 'building', icon: '🏫', shape: 'rect' };
+      return { zone_type: 'building', icon: 'CIVIC', shape: 'rect' };
     }
     if (/\b(B\d+|BLOCK|TOWER|OFFICE|BUILDING|WING|PHASE|PARKING|WAREHOUSE|SHED|BAY)\b/.test(u)) {
-      return { zone_type: 'building', icon: '🏢', shape: 'rect' };
+      return { zone_type: 'building', icon: 'BLDG', shape: 'rect' };
     }
-    return { zone_type: 'zone', icon: '🏛️', shape: 'rect' };
+    return { zone_type: 'zone', icon: 'ZONE', shape: 'rect' };
   }
 
   function isDimensionNumber(str) {
@@ -54,8 +55,10 @@
   }
 
   function isArchitecturalKeyword(text) {
-    const u = String(text || '').toUpperCase();
-    return /\b(BUILDING|BLOCK|TOWER|WAREHOUSE|SHED|BAY|SECURITY|CABIN|GATE|SUB\s*STATION|TRANSFORMER|UG\s*SUMP|PUMP\s*ROOM|STP|WTP|OSR|GREEN\s*BELT|LANDSCAPE|PARKING|ROAD|ENTRY|EXIT|WEIGH\s*BRIDGE|CANTEEN|ADMIN|OFFICE)\b/.test(u);
+    const u = String(text || '').trim().toUpperCase();
+    if (/\b\d+(\.\d+)?\s*M\b/.test(u)) return false;
+    if (/^(?:ROAD|WIDE\s*ROAD|INTERNAL\s*ROAD|DOCK|CANOPY|RAMP)$/i.test(u)) return false;
+    return /\b(BUILDING|BLOCK|TOWER|WAREHOUSE|SHED|BAY|SECURITY|CABIN|GATE|SUB\s*STATION|TRANSFORMER|UG\s*SUMP|PUMP\s*ROOM|STP|WTP|OSR|GREEN\s*BELT|LANDSCAPE|PARKING|ENTRY|EXIT|WEIGH\s*BRIDGE|CANTEEN|ADMIN|OFFICE|TEMPLE|MOSQUE|METRO|BRIDGE)\b/.test(u);
   }
 
   function isMasterplanNoise(text, xPct, yPct, siteRoi) {
@@ -66,6 +69,7 @@
     if (MATH_EQ_RE.test(t)) return true;
     if (STOPWORDS_RE.test(t)) return true;
     if (NOISE_TERMS_RE.test(t)) return true;
+    if (ROAD_DIM_RE.test(t)) return true;
     if (/\b(PLINE|PATRA|LINE|SQMT|SQM|SQFT|ACRES?|HECTARES?|GROUND|COVERAGE|OPTION|REV|REVISION|SHEET|DRAWING|SCALE|PERCENTAGE)\b/i.test(t)) {
       const stripped = t
         .replace(/\b(PLINE|PATRA|LINE|SQMT|SQM|SQFT|ACRES?|HECTARES?|GROUND|COVERAGE|OPTION|REV|REVISION|SHEET|DRAWING|SCALE|PERCENTAGE|\d+[\d,.]*)\b/gi, '')
@@ -1044,30 +1048,67 @@
       let title = '';
       let area = '';
 
-      if (inside.length > 0) {
-        inside.forEach((c) => {
-          c.claimed = true;
-        });
-        const named =
-          inside.find((c) =>
-            /\b(BUILDING|BLOCK|WAREHOUSE|SHED|BAY|FACILITY|OFFICE|ADMIN|SECURITY|CABIN|STP|WTP|SUB\s*STATION)\b/i.test(c.text)
-          ) ||
-          inside.find((c) => !isDimensionNumber(c.text) && c.text.length >= 3 && !/^\d+$/.test(c.text.replace(/\D/g, '')));
+      const bboxW = parseFloat(parcel.bbox.w || 0);
+      const bboxH = parseFloat(parcel.bbox.h || 0);
+      const isDockStrip = parcel.category === 'building' && (bboxW / Math.max(0.1, bboxH) > 4.2 || bboxH / Math.max(0.1, bboxW) > 4.2) && (parcel.area < 4000);
+      const isLargeBuilding = parcel.category === 'building' && !isDockStrip && (parcel.area > 2500 || (bboxH > 6 && bboxW > 10));
 
-        if (named) {
-          title = named.text;
-          area = named.area || (inside.find((c) => c.area)?.area || '');
+      if (inside.length > 0) {
+        // Priority 1: Exact Building / Warehouse Codes (e.g. "B01", "B-01", "B1", "WH-01", "PLOT 1", "BLOCK 1")
+        const codeToken = inside.find((c) =>
+          /^(?:B-?\d+[A-Z]?|WH-?\d+[A-Z]?|PLOT-?\d+|BAY-?\d+|SHED-?\d+|TOWER\s*[A-Z0-9]+|BLOCK\s*[A-Z0-9]+)$/i.test(c.text.trim())
+        );
+
+        // Priority 2: Primary building facility names (WAREHOUSE, FACTORY, OFFICE, ADMIN, SECURITY, SUB STATION, STP)
+        const primaryBuilding = inside.find((c) =>
+          /\b(BUILDING|BLOCK|WAREHOUSE|SHED|BAY|FACILITY|OFFICE|ADMIN|SECURITY|CABIN|STP|WTP|SUB\s*STATION|TEMPLE|CANTEEN)\b/i.test(c.text) &&
+          !/\b(DOCK|ROAD|RESTROOM|CANOPY|RAMP)\b/i.test(c.text)
+        );
+
+        // Priority 3: General descriptive architectural text (excluding secondary dock/canopy if large building)
+        const generalText = inside.find((c) => {
+          const t = c.text.trim();
+          if (isDimensionNumber(t) || t.length < 3) return false;
+          if (isLargeBuilding && /^(?:DOCK|CANOPY|RAMP|SHUTTER)$/i.test(t)) return false;
+          return !/^\d+$/.test(t.replace(/\D/g, ''));
+        });
+
+        // Priority 4: Structural attachment / dock canopy words
+        const attachmentText = inside.find((c) => /\b(DOCK|CANOPY|RAMP|RESTROOM)\b/i.test(c.text));
+
+        const matchedCand = codeToken || primaryBuilding || generalText || attachmentText;
+
+        if (matchedCand) {
+          const raw = matchedCand.text.trim();
+          if (/^B-?\d+[A-Z]?$/i.test(raw)) {
+            title = 'Building ' + raw.toUpperCase();
+          } else if (/^WH-?\d+[A-Z]?$/i.test(raw)) {
+            title = 'Warehouse ' + raw.toUpperCase();
+          } else if (/^DOCK$/i.test(raw)) {
+            title = isLargeBuilding ? `Building 0${bldgCounter++}` : 'Loading Dock';
+          } else {
+            title = raw;
+          }
+          area = matchedCand.area || (inside.find((c) => c.area)?.area || '');
         } else {
           title =
-            parcel.category === 'building'
+            isDockStrip
+              ? 'Loading Dock'
+              : parcel.category === 'building'
               ? `Building 0${bldgCounter++}`
               : parcel.category === 'landscape'
               ? 'OSR / Green Belt'
               : 'Zone';
           area = inside.find((c) => c.area)?.area || '';
         }
+
+        inside.forEach((c) => {
+          c.claimed = true;
+        });
       } else {
-        if (parcel.category === 'building') {
+        if (isDockStrip) {
+          title = 'Loading Dock';
+        } else if (parcel.category === 'building') {
           title = `Building 0${bldgCounter++}`;
         } else if (parcel.category === 'landscape') {
           title = 'OSR / Green Belt';
@@ -1085,8 +1126,8 @@
       labels.push({
         text: title,
         area,
-        zone_type: parcel.category === 'building' ? 'building' : (parcel.category === 'landscape' ? 'landscape' : cls.zone_type),
-        icon: parcel.category === 'landscape' ? '🌳' : cls.icon,
+        zone_type: isDockStrip ? 'utility' : (parcel.category === 'building' ? 'building' : (parcel.category === 'landscape' ? 'landscape' : cls.zone_type)),
+        icon: isDockStrip ? 'UTIL' : (parcel.category === 'landscape' ? 'LAND' : (cls.icon || 'BLDG')),
         shape: 'polygon',
         polygon: parcel.polygon,
         vectorPolygon: parcel.polygon,
@@ -1098,7 +1139,7 @@
       });
     }
 
-    // 5. Add remaining unclaimed candidate lines ONLY if they match architectural keywords (Roads, Gates, Utilities)
+    // 5. Add remaining unclaimed candidate lines ONLY if they match architectural keywords (Gates, Utilities, Landmarks)
     for (const cand of candidateLines) {
       if (cand.claimed) continue;
       if (!isArchitecturalKeyword(cand.text)) continue;
@@ -1109,7 +1150,7 @@
         text: cand.text,
         area: cand.area,
         zone_type: cls.zone_type,
-        icon: cls.icon,
+        icon: cls.icon || 'ZONE',
         shape: cls.shape,
         xPct: Math.round(cand.xPct * 100) / 100,
         yPct: Math.round(cand.yPct * 100) / 100,

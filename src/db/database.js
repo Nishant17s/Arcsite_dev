@@ -49,7 +49,7 @@ function initDB() {
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
-      icon TEXT DEFAULT '🏢',
+      icon TEXT DEFAULT 'BLDG',
       shape TEXT DEFAULT 'rect',
       x TEXT NOT NULL DEFAULT '10%',
       y TEXT NOT NULL DEFAULT '10%',
@@ -110,6 +110,25 @@ function initDB() {
   }
   if (!fileCols.includes('status')) {
     db.exec("ALTER TABLE files ADD COLUMN status TEXT DEFAULT 'WIP'");
+  }
+
+  // Clean any legacy emoji records in assets table
+  try {
+    const rows = db.prepare("SELECT id, icon FROM assets WHERE icon IS NOT NULL AND icon != ''").all();
+    const updateStmt = db.prepare("UPDATE assets SET icon = ? WHERE id = ?");
+    for (const r of rows) {
+      if (/[\uD800-\uDBFF]|[\u2600-\u27BF]/.test(r.icon)) {
+        let clean = 'BLDG';
+        if (/[\uD83D\uDCA7\u26A1\uD83D\uDEE1]/.test(r.icon)) clean = 'UTIL';
+        else if (/[\uD83C\uDF33]/.test(r.icon)) clean = 'LAND';
+        else if (/[\uD83D\uDEE3]/.test(r.icon)) clean = 'ROAD';
+        else if (/[\uD83C\uDF09]/.test(r.icon)) clean = 'METRO';
+        else if (/[\uD83D\uDD4C\uD83C\uDFEB\uD83C\uDFDB]/.test(r.icon)) clean = 'CIVIC';
+        updateStmt.run(clean, r.id);
+      }
+    }
+  } catch (e) {
+    // ignore
   }
 
   return db;
@@ -245,7 +264,7 @@ function createAsset({ id, project_id, title, icon, shape, x, y, w, h, area, sta
     INSERT INTO assets (id, project_id, title, icon, shape, x, y, w, h, area, status, polygon, notes, sort_order)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, project_id, title, icon || '🏢', shape || 'rect',
+    id, project_id, title, icon || 'BLDG', shape || 'rect',
     x || '10%', y || '10%', w || '15%', h || '12%',
     area || '', status || 'WIP', polyJson, notes || '', sort_order || 0
   );

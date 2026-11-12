@@ -372,7 +372,7 @@
         ProjectController.assets
           .map(
             (a) =>
-              `<option value="${App.escapeHtml(a.id)}"${a.id === selectedId ? ' selected' : ''}>${App.escapeHtml(a.icon || '🏢')} ${App.escapeHtml(a.title)}</option>`
+              `<option value="${App.escapeHtml(a.id)}"${a.id === selectedId ? ' selected' : ''}>[${App.escapeHtml(ProjectController.getZoneTag(a))}] ${App.escapeHtml(a.title)}</option>`
           )
           .join('');
 
@@ -594,6 +594,23 @@
       return ProjectController.files.filter((f) => f.asset_id === assetId);
     },
 
+    getZoneTag(asset) {
+      if (!asset) return 'ZONE';
+      const icon = String(asset.icon || '').trim();
+      if (icon && !/[\uD800-\uDBFF]|[\u2600-\u27BF]/.test(icon) && icon.length <= 6) {
+        return icon.toUpperCase();
+      }
+      const z = (asset.zone_type || '').toLowerCase();
+      if (z === 'building') return 'BLDG';
+      if (z === 'landscape') return 'LAND';
+      if (z === 'utility') return 'UTIL';
+      if (z === 'transit') return 'METRO';
+      if (z === 'road') return 'ROAD';
+      if (z === 'civic') return 'CIVIC';
+      if (asset.shape === 'polygon') return 'ZONE';
+      return (asset.shape || 'BLDG').toUpperCase();
+    },
+
     renderSidebar() {
       const listEl = document.getElementById('asset-list');
       const filesListEl = document.getElementById('project-files-list');
@@ -637,7 +654,7 @@
           const areaStr = a.area ? ` • ${App.escapeHtml(a.area)}` : '';
           return `
             <div class="asset-item${activeClass}" data-asset-id="${App.escapeHtml(a.id)}">
-              <div class="asset-item-icon">${App.escapeHtml(a.icon || '🏢')}</div>
+              <span class="asset-item-badge">${App.escapeHtml(ProjectController.getZoneTag(a))}</span>
               <div class="asset-item-info">
                 <div class="asset-item-title">${App.escapeHtml(a.title)}</div>
                 <div class="asset-item-meta">${count} ${count === 1 ? 'doc' : 'docs'}${areaStr} <span class="status-pill status-${App.escapeHtml(st)}">${App.escapeHtml(st)}</span></div>
@@ -913,25 +930,106 @@
 
       ProjectController.renderPolygons();
 
+      // Pre-calculate collision-free badge offsets
+      const badgeLayouts = {};
+      const placedBadges = [];
+
+      // Sort assets so larger primary footprints establish positions first
+      const sortedAssets = [...ProjectController.assets].sort((a, b) => {
+        const areaA = parseFloat(a.area) || (parseFloat(a.w || 0) * parseFloat(a.h || 0));
+        const areaB = parseFloat(b.area) || (parseFloat(b.w || 0) * parseFloat(b.h || 0));
+        return areaB - areaA;
+      });
+
+      for (const a of sortedAssets) {
+        const ax = ProjectController.parsePct(a.x, 0);
+        const ay = ProjectController.parsePct(a.y, 0);
+        const aw = Math.max(1, ProjectController.parsePct(a.w, 10));
+        const ah = Math.max(1, ProjectController.parsePct(a.h, 10));
+        const hasPoly = Array.isArray(a.polygon) && a.polygon.length >= 3;
+
+        let cx, cy;
+        if (hasPoly) {
+          cx = a.polygon.reduce((s, p) => s + p[0], 0) / a.polygon.length;
+          cy = a.polygon.reduce((s, p) => s + p[1], 0) / a.polygon.length;
+        } else {
+          cx = ax + aw / 2;
+          cy = ay + ah / 2;
+        }
+
+        const titleText = a.title || '';
+        const areaText = a.area || '';
+        const badgeCharCount = titleText.length + (areaText ? areaText.length + 3 : 0);
+        const badgeW = Math.max(8.0, Math.min(22.0, badgeCharCount * 0.65 + 4.5));
+        const badgeH = 3.8;
+        const halfW = badgeW / 2;
+        const halfH = badgeH / 2;
+
+        const candidates = [
+          [cx, cy],
+          [cx, cy + badgeH * 1.05],
+          [cx, cy - badgeH * 1.05],
+          [cx + halfW * 0.7, cy],
+          [cx - halfW * 0.7, cy],
+          [cx, cy + badgeH * 2.1],
+          [cx, cy - badgeH * 2.1],
+          [cx + halfW * 0.9, cy + badgeH * 0.9],
+          [cx - halfW * 0.9, cy + badgeH * 0.9],
+          [cx + halfW * 0.9, cy - badgeH * 0.9],
+          [cx - halfW * 0.9, cy - badgeH * 0.9],
+        ];
+
+        let bestScore = Infinity;
+        let chosenPos = [cx, cy];
+
+        for (const [candX, candY] of candidates) {
+          let overlapScore = 0;
+          for (const pb of placedBadges) {
+            const dx = Math.abs(candX - pb.cx);
+            const dy = Math.abs(candY - pb.cy);
+            const reqX = (halfW + pb.halfW) * 0.92;
+            const reqY = (halfH + pb.halfH) * 0.92;
+            if (dx < reqX && dy < reqY) {
+              overlapScore += (reqX - dx) * (reqY - dy);
+            }
+          }
+
+          const outX = Math.max(0, (ax + 0.4) - candX) + Math.max(0, candX - (ax + aw - 0.4));
+          const outY = Math.max(0, (ay + 0.4) - candY) + Math.max(0, candY - (ay + ah - 0.4));
+          const outPenalty = (outX + outY) * 12;
+
+          const distFromCenter = Math.hypot(candX - cx, candY - cy);
+          const score = (overlapScore * 100) + outPenalty + distFromCenter;
+
+          if (score < bestScore) {
+            bestScore = score;
+            chosenPos = [candX, candY];
+            if (overlapScore === 0 && outPenalty === 0) break;
+          }
+        }
+
+        placedBadges.push({
+          cx: chosenPos[0],
+          cy: chosenPos[1],
+          halfW,
+          halfH,
+          id: a.id,
+        });
+
+        const relX = Math.max(6, Math.min(94, ((chosenPos[0] - ax) / aw) * 100));
+        const relY = Math.max(6, Math.min(94, ((chosenPos[1] - ay) / ah) * 100));
+        badgeLayouts[a.id] = { relX, relY };
+      }
+
       const assetsHtml = ProjectController.assets
         .map((a) => {
           const activeClass = a.id === ProjectController.selectedAssetId ? ' active' : '';
           const hasPoly = Array.isArray(a.polygon) && a.polygon.length >= 3;
           const shape = hasPoly ? 'polygon' : (a.shape || 'rect');
           const areaTag = a.area ? `<span class="hotspot-area">${App.escapeHtml(a.area)}</span>` : '';
-
-          let badgeStyle = '';
-          if (hasPoly) {
-            const ax = ProjectController.parsePct(a.x, 0);
-            const ay = ProjectController.parsePct(a.y, 0);
-            const aw = Math.max(1, ProjectController.parsePct(a.w, 10));
-            const ah = Math.max(1, ProjectController.parsePct(a.h, 10));
-            const cx = a.polygon.reduce((s, p) => s + p[0], 0) / a.polygon.length;
-            const cy = a.polygon.reduce((s, p) => s + p[1], 0) / a.polygon.length;
-            const relX = Math.max(15, Math.min(85, ((cx - ax) / aw) * 100));
-            const relY = Math.max(15, Math.min(85, ((cy - ay) / ah) * 100));
-            badgeStyle = ` style="left:${relX.toFixed(1)}%;top:${relY.toFixed(1)}%;"`;
-          }
+          const layout = badgeLayouts[a.id] || { relX: 50, relY: 50 };
+          const badgeStyle = ` style="left:${layout.relX.toFixed(1)}%;top:${layout.relY.toFixed(1)}%;"`;
+          const zoneClass = (a.zone_type || a.icon || 'bldg').toLowerCase().replace(/[^a-z0-9_-]/g, '');
 
           return `
             <div class="hotspot${activeClass}"
@@ -939,7 +1037,7 @@
                  data-shape="${App.escapeHtml(shape)}"
                  style="left:${App.escapeHtml(a.x)};top:${App.escapeHtml(a.y)};width:${App.escapeHtml(a.w)};height:${App.escapeHtml(a.h)};">
               <div class="hotspot-badge"${badgeStyle}>
-                <span class="hotspot-icon">${App.escapeHtml(a.icon || '🏢')}</span>
+                <span class="hotspot-dot zone-${App.escapeHtml(zoneClass)}"></span>
                 <span class="hotspot-label">${App.escapeHtml(a.title)}</span>
                 ${areaTag}
               </div>
@@ -957,12 +1055,15 @@
       if (ProjectController.smartAssistOpen && ProjectController.smartSuggestions.length > 0) {
         ghostHtml = ProjectController.smartSuggestions
           .filter((s) => s.selected)
-          .map(
-            (s) => `
+          .map((s) => {
+            const zClass = (s.zone_type || 'bldg').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+            return `
             <div class="sa-ghost-pin" data-sa-pin="${s.idx}" style="left:${s.xPct}%;top:${s.yPct}%;">
-              ${App.escapeHtml(s.icon)} ${App.escapeHtml(s.text)}
-            </div>`
-          )
+              <span class="hotspot-dot zone-${App.escapeHtml(zClass)}"></span>
+              <span class="hotspot-label">${App.escapeHtml(s.text)}</span>
+              ${s.area ? `<span class="hotspot-area">${App.escapeHtml(s.area)}</span>` : ''}
+            </div>`;
+          })
           .join('');
       }
 
@@ -1227,32 +1328,33 @@
     /* ---------------- Document Popup ---------------- */
     getFileIcon(file) {
       const ext = ((file.original_name || file.label || '').split('.').pop() || '').toLowerCase();
-      const map = {
-        pdf: '📄',
-        ifc: '🏗️',
-        dxf: '📐',
-        dwg: '📐',
-        bak: '📐',
-        skp: '🧊',
-        skb: '🧊',
-        pptx: '📊',
-        ppt: '📊',
-        rvt: '🏛️',
-        rfa: '🏛️',
-        '3dm': '🦏',
-        glb: '🧊',
-        gltf: '🧊',
-        obj: '🧊',
-        stl: '🧊',
-        png: '🖼️',
-        jpg: '🖼️',
-        jpeg: '🖼️',
-        webp: '🖼️',
-        svg: '🖼️',
-        gif: '🖼️',
-        html: '🌐',
+      const labels = {
+        pdf: 'PDF',
+        ifc: 'BIM',
+        dxf: 'DXF',
+        dwg: 'DWG',
+        bak: 'BAK',
+        skp: '3D',
+        skb: 'SKB',
+        pptx: 'PPT',
+        ppt: 'PPT',
+        rvt: 'RVT',
+        rfa: 'RFA',
+        '3dm': '3DM',
+        glb: 'GLB',
+        gltf: 'GLTF',
+        obj: 'OBJ',
+        stl: 'STL',
+        png: 'IMG',
+        jpg: 'IMG',
+        jpeg: 'IMG',
+        webp: 'IMG',
+        svg: 'SVG',
+        gif: 'IMG',
+        html: 'DOC',
       };
-      return map[ext] || '📎';
+      const tag = labels[ext] || (ext ? ext.slice(0, 4).toUpperCase() : 'DOC');
+      return `<span class="cad-file-tag ext-${App.escapeHtml(ext)}">${App.escapeHtml(tag)}</span>`;
     },
 
     openDocPopup(assetId, anchorEl) {
@@ -1265,7 +1367,7 @@
       const subEl = document.getElementById('doc-popup-sub');
       const bodyEl = document.getElementById('doc-popup-body');
 
-      iconEl.textContent = asset.icon || '🏢';
+      iconEl.innerHTML = `<span class="asset-item-badge">${App.escapeHtml(ProjectController.getZoneTag(asset))}</span>`;
       iconEl.dataset.shape = asset.shape || 'rect';
       titleEl.textContent = asset.title;
       if (subEl) {
@@ -1463,7 +1565,7 @@
       ProjectController.syncEditorInputs(asset);
 
       document.querySelectorAll('#icon-picker .icon-opt').forEach((b) => {
-        b.classList.toggle('selected', b.dataset.icon === (asset.icon || '🏢'));
+        b.classList.toggle('selected', b.dataset.icon === ProjectController.getZoneTag(asset));
       });
       document.querySelectorAll('#shape-picker .shape-opt').forEach((b) => {
         b.classList.toggle('selected', b.dataset.shape === (asset.shape || 'rect'));
@@ -1736,7 +1838,7 @@
           errEl.textContent = 'Asset title is required.';
           return;
         }
-        const icon = document.querySelector('#aa-icon-picker .icon-opt.selected')?.dataset.icon || '🏢';
+        const icon = document.querySelector('#aa-icon-picker .icon-opt.selected')?.dataset.icon || 'BLDG';
         let shape = document.querySelector('#aa-shape-picker .shape-opt.selected')?.dataset.shape || 'rect';
         const checkedCats = Array.from(
           document.querySelectorAll('#add-asset-form input[type="checkbox"]:checked')
@@ -3046,7 +3148,7 @@
           text: lbl.text,
           area: lbl.area || '',
           zone_type: lbl.zone_type || 'building',
-          icon: lbl.icon || '🏢',
+          icon: lbl.icon || 'BLDG',
           shape: traced ? 'polygon' : (lbl.shape || 'rect'),
           polygon: traced ? traced.polygon : null,
           bbox: traced ? traced.bbox : null,
@@ -3112,7 +3214,7 @@
                 text: isBldg ? `Building 0${bldgCount++}` : 'OSR / Green Belt',
                 area: '',
                 zone_type: isBldg ? 'building' : 'landscape',
-                icon: isBldg ? '🏢' : '🌳',
+                icon: isBldg ? 'BLDG' : 'LAND',
                 shape: 'polygon',
                 polygon: p.polygon,
                 vectorPolygon: p.polygon,
@@ -3169,7 +3271,7 @@
       const selectedCount = ProjectController.smartSuggestions.filter((s) => s.selected).length;
       summaryEl.innerHTML = `
         <div style="font-weight:700;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:6px;">
-          <span>🎯</span> Master Plan Classified
+          <span class="file-badge-cat" style="font-weight:700;">ANALYSIS</span> Master Plan Intelligence
         </div>
         ${ProjectController.smartSiteArea ? `<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:2px;"><strong>Site Area:</strong> ${App.escapeHtml(ProjectController.smartSiteArea)}</div>` : ''}
         ${ProjectController.smartGroundCoverage ? `<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:2px;"><strong>Ground Coverage:</strong> ${App.escapeHtml(ProjectController.smartGroundCoverage)}</div>` : ''}
@@ -3184,11 +3286,11 @@
       }
 
       const groups = [
-        { title: '🏢 Buildings & Warehouses', filter: (s) => s.zone_type === 'building' },
-        { title: '🌳 Landscaping & Green Belts', filter: (s) => s.zone_type === 'landscape' },
-        { title: '⚡ Utilities & Infrastructure', filter: (s) => s.zone_type === 'utility' || s.zone_type === 'civic' },
-        { title: '🛣️ Circulation & Roads', filter: (s) => s.zone_type === 'road' || s.zone_type === 'transit' },
-        { title: '📍 Other Site Zones', filter: (s) => !['building', 'landscape', 'utility', 'civic', 'road', 'transit'].includes(s.zone_type) },
+        { title: 'Buildings & Warehouses', filter: (s) => s.zone_type === 'building' },
+        { title: 'Landscaping & Green Belts', filter: (s) => s.zone_type === 'landscape' },
+        { title: 'Utilities & Infrastructure', filter: (s) => s.zone_type === 'utility' || s.zone_type === 'civic' },
+        { title: 'Circulation & Roads', filter: (s) => s.zone_type === 'road' || s.zone_type === 'transit' },
+        { title: 'Other Site Zones', filter: (s) => !['building', 'landscape', 'utility', 'civic', 'road', 'transit'].includes(s.zone_type) },
       ];
 
       let html = '';
@@ -3204,7 +3306,7 @@
               <div class="sa-item" data-sa-idx="${i}">
                 <div class="sa-item-top">
                   <input type="checkbox" data-sa-check="${i}" ${s.selected ? 'checked' : ''}>
-                  <span>${App.escapeHtml(s.icon)}</span>
+                  <span class="file-badge-cat" style="font-weight:700;font-size:9.5px;min-width:38px;text-align:center;">${App.escapeHtml((s.zone_type || 'bldg').toUpperCase())}</span>
                   <input type="text" class="sa-item-title" data-sa-title="${i}" value="${App.escapeHtml(s.text)}">
                 </div>
                 <div class="sa-item-meta">
@@ -3348,7 +3450,7 @@
               const st = a.status || 'WIP';
               return `
                 <tr>
-                  <td>${App.escapeHtml(a.icon || '🏢')} <strong>${App.escapeHtml(a.title)}</strong></td>
+                  <td><span class="asset-item-badge" style="margin-right:6px;">${App.escapeHtml(ProjectController.getZoneTag(a))}</span> <strong>${App.escapeHtml(a.title)}</strong></td>
                   <td style="font-family:var(--mono);">${App.escapeHtml(a.area || '—')}</td>
                   <td><span class="status-pill status-${App.escapeHtml(st)}">${App.escapeHtml(st)}</span></td>
                   <td style="font-family:var(--mono);">${fCount}</td>
