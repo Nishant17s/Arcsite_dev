@@ -45,7 +45,11 @@
       active: false,
       points: [],
       editingAssetId: null,
+      ortho: false,
+      currentMouse: null,
+      snapped: false,
     },
+    cadMenuTarget: null,
 
     init() {
       document.getElementById('back-to-dash')?.addEventListener('click', () => {
@@ -180,6 +184,7 @@
 
       // Polygon Drawing & Magic Trace
       ProjectController.bindPolygonDrawing();
+      ProjectController.bindCadGripMenu();
       ProjectController.bindMagicTrace();
       document.getElementById('toggle-labels-btn')?.addEventListener('click', () => {
         const mapArea = document.getElementById('map-area');
@@ -676,15 +681,53 @@
         .join('');
 
       let vertexHandlesHtml = '';
+      let cadGuidesHtml = '';
       if (ProjectController.editMode && ProjectController.selectedAssetId) {
         const sel = ProjectController.assets.find((a) => a.id === ProjectController.selectedAssetId);
         if (sel && Array.isArray(sel.polygon) && sel.polygon.length >= 3) {
-          vertexHandlesHtml = sel.polygon
-            .map(
-              (p, vi) =>
-                `<circle class="poly-vertex-handle" data-v-asset="${App.escapeHtml(sel.id)}" data-v-idx="${vi}" cx="${p[0]}" cy="${p[1]}" r="0.85"></circle>`
-            )
+          const polyLen = sel.polygon.length;
+
+          // Corner grips (square CAD boxes ■)
+          const cornerGrips = sel.polygon
+            .map((p, vi) => {
+              const isActive =
+                ProjectController.vertexDrag &&
+                ProjectController.vertexDrag.assetId === sel.id &&
+                ProjectController.vertexDrag.idx === vi;
+              const cls = `poly-vertex-handle cad-grip-vertex${isActive ? ' active' : ''}`;
+              return `<rect class="${cls}" data-v-asset="${App.escapeHtml(sel.id)}" data-v-idx="${vi}" x="${(p[0] - 0.75).toFixed(2)}" y="${(p[1] - 0.75).toFixed(2)}" width="1.5" height="1.5"></rect>`;
+            })
             .join('');
+
+          // Edge midpoint grips (horizontal CAD pills ▬)
+          const edgeGrips = sel.polygon
+            .map((p, vi) => {
+              const nextP = sel.polygon[(vi + 1) % polyLen];
+              const midX = (p[0] + nextP[0]) / 2;
+              const midY = (p[1] + nextP[1]) / 2;
+              return `<rect class="poly-edge-handle cad-grip-edge" data-e-asset="${App.escapeHtml(sel.id)}" data-e-idx="${vi}" x="${(midX - 1.1).toFixed(2)}" y="${(midY - 0.5).toFixed(2)}" width="2.2" height="1.0" rx="0.25"></rect>`;
+            })
+            .join('');
+
+          vertexHandlesHtml = cornerGrips + edgeGrips;
+
+          // Orthogonal dimension guidelines when dragging active grip
+          if (ProjectController.vertexDrag && ProjectController.vertexDrag.assetId === sel.id) {
+            const vi = ProjectController.vertexDrag.idx;
+            const cur = sel.polygon[vi];
+            const prev = sel.polygon[(vi - 1 + polyLen) % polyLen];
+            const dxPrev = (Math.abs(cur[0] - prev[0]) * 35.2).toFixed(1);
+            const dyPrev = (Math.abs(cur[1] - prev[1]) * 35.2).toFixed(1);
+
+            cadGuidesHtml = `
+              <g class="cad-guides-group">
+                <line class="cad-dim-guide" x1="${prev[0]}" y1="${cur[1]}" x2="${cur[0]}" y2="${cur[1]}"></line>
+                <line class="cad-dim-guide" x1="${prev[0]}" y1="${prev[1]}" x2="${prev[0]}" y2="${cur[1]}"></line>
+                <text class="cad-dim-guide-label" x="${((prev[0] + cur[0]) / 2).toFixed(2)}" y="${(cur[1] - 0.8).toFixed(2)}">${dxPrev}</text>
+                <text class="cad-dim-guide-label" x="${(prev[0] + 1.2).toFixed(2)}" y="${((prev[1] + cur[1]) / 2).toFixed(2)}">${dyPrev}</text>
+              </g>
+            `;
+          }
         }
       }
 
@@ -701,15 +744,36 @@
 
       let draftHtml = '';
       if (ProjectController.polyDraw.active && ProjectController.polyDraw.points.length > 0) {
-        const pts = ProjectController.polyDraw.points.map((p) => `${p[0]},${p[1]}`).join(' ');
-        const tag = ProjectController.polyDraw.points.length >= 3 ? 'polygon' : 'polyline';
-        draftHtml = `<${tag} class="poly-draft-line" points="${App.escapeHtml(pts)}"></${tag}>` +
-          ProjectController.polyDraw.points
-            .map((p) => `<circle class="poly-draft-pt" cx="${p[0]}" cy="${p[1]}" r="0.85"></circle>`)
-            .join('');
+        const pts = ProjectController.polyDraw.points;
+        const ptsStr = pts.map((p) => `${p[0]},${p[1]}`).join(' ');
+        draftHtml += `<polyline class="poly-draft-line" points="${App.escapeHtml(ptsStr)}"></polyline>`;
+
+        // Placed vertices with square CAD grips
+        pts.forEach((p, idx) => {
+          const isStart = idx === 0;
+          const fill = isStart ? '#10B981' : '#0F172A';
+          const stroke = isStart ? '#FFFFFF' : '#38BDF8';
+          draftHtml += `<rect class="cad-grip-vertex" x="${(p[0] - 0.75).toFixed(2)}" y="${(p[1] - 0.75).toFixed(2)}" width="1.5" height="1.5" style="fill: ${fill}; stroke: ${stroke}; stroke-width: 1.5; vector-effect: non-scaling-stroke;"></rect>`;
+        });
+
+        // Live rubber-band line to current mouse position
+        if (ProjectController.polyDraw.currentMouse) {
+          const last = pts[pts.length - 1];
+          const cur = ProjectController.polyDraw.currentMouse;
+          draftHtml += `<line class="cad-rubber-band" x1="${last[0]}" y1="${last[1]}" x2="${cur[0]}" y2="${cur[1]}" style="stroke: #38BDF8; stroke-width: 1.8; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke;"></line>`;
+
+          // Dashed closure line back to starting vertex if 2 or more points
+          if (pts.length >= 2) {
+            const start = pts[0];
+            const isSnap = ProjectController.polyDraw.snapped;
+            const closeColor = isSnap ? '#10B981' : 'rgba(56, 189, 248, 0.45)';
+            const closeWidth = isSnap ? '2.5' : '1.2';
+            draftHtml += `<line class="cad-closure-guide" x1="${cur[0]}" y1="${cur[1]}" x2="${start[0]}" y2="${start[1]}" style="stroke: ${closeColor}; stroke-width: ${closeWidth}; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke;"></line>`;
+          }
+        }
       }
 
-      svg.innerHTML = zonesHtml + saPreviewHtml + vertexHandlesHtml + draftHtml;
+      svg.innerHTML = zonesHtml + saPreviewHtml + cadGuidesHtml + vertexHandlesHtml + draftHtml;
 
       svg.querySelectorAll('[data-poly-asset]').forEach((poly) => {
         poly.addEventListener('click', (e) => {
@@ -746,7 +810,38 @@
           if (!ProjectController.editMode) return;
           e.preventDefault();
           e.stopPropagation();
-          ProjectController.removePolygonVertexAt(vh.dataset.vAsset, Number(vh.dataset.vIdx));
+          ProjectController.openCadGripMenu(e, vh.dataset.vAsset, Number(vh.dataset.vIdx), false);
+        });
+      });
+
+      svg.querySelectorAll('.poly-edge-handle').forEach((eh) => {
+        eh.addEventListener('mousedown', (e) => {
+          if (e.button !== 0 || !ProjectController.editMode) return;
+          e.stopPropagation();
+          e.preventDefault();
+          const assetId = eh.dataset.eAsset;
+          const idx = Number(eh.dataset.eIdx);
+          const asset = ProjectController.assets.find((a) => a.id === assetId);
+          if (asset && Array.isArray(asset.polygon)) {
+            const nextIdx = (idx + 1) % asset.polygon.length;
+            const mid = [
+              Math.round(((asset.polygon[idx][0] + asset.polygon[nextIdx][0]) / 2) * 100) / 100,
+              Math.round(((asset.polygon[idx][1] + asset.polygon[nextIdx][1]) / 2) * 100) / 100,
+            ];
+            asset.polygon.splice(idx + 1, 0, mid);
+            ProjectController.persistAssetPolygon(asset);
+            ProjectController.vertexDrag = {
+              assetId,
+              idx: idx + 1,
+              moved: true,
+            };
+          }
+        });
+        eh.addEventListener('contextmenu', (e) => {
+          if (!ProjectController.editMode) return;
+          e.preventDefault();
+          e.stopPropagation();
+          ProjectController.openCadGripMenu(e, eh.dataset.eAsset, Number(eh.dataset.eIdx), true);
         });
       });
     },
@@ -992,8 +1087,21 @@
         if (e.cancelable) e.preventDefault();
 
         const rect = transformEl.getBoundingClientRect();
-        const xPct = Math.round(Math.max(0, Math.min(100, ((pt.clientX - rect.left) / (rect.width || 1)) * 100)) * 100) / 100;
-        const yPct = Math.round(Math.max(0, Math.min(100, ((pt.clientY - rect.top) / (rect.height || 1)) * 100)) * 100) / 100;
+        let xPct = Math.round(Math.max(0, Math.min(100, ((pt.clientX - rect.left) / (rect.width || 1)) * 100)) * 100) / 100;
+        let yPct = Math.round(Math.max(0, Math.min(100, ((pt.clientY - rect.top) / (rect.height || 1)) * 100)) * 100) / 100;
+
+        if (e.shiftKey || ProjectController.polyDraw.ortho) {
+          const polyLen = asset.polygon.length;
+          const prev = asset.polygon[(vd.idx - 1 + polyLen) % polyLen];
+          const dx = Math.abs(xPct - prev[0]);
+          const dy = Math.abs(yPct - prev[1]);
+          if (dx >= dy) {
+            yPct = prev[1];
+          } else {
+            xPct = prev[0];
+          }
+        }
+
         asset.polygon[vd.idx] = [xPct, yPct];
         vd.moved = true;
 
@@ -2005,7 +2113,209 @@
       App.toast('Project exported as JSON', 'success');
     },
 
-    /* ---------------- Polygon Zone Drawing ---------------- */
+    /* ---------------- Polygon Zone Drawing & CAD Controls ---------------- */
+    toggleOrthoMode(forceVal) {
+      ProjectController.polyDraw.ortho =
+        typeof forceVal === 'boolean' ? forceVal : !ProjectController.polyDraw.ortho;
+      const btn = document.getElementById('poly-ortho-btn');
+      if (btn) {
+        btn.textContent = ProjectController.polyDraw.ortho ? 'Ortho: ON' : 'Ortho: OFF';
+        btn.classList.toggle('btn-primary', ProjectController.polyDraw.ortho);
+        btn.classList.toggle('btn-ghost', !ProjectController.polyDraw.ortho);
+      }
+      const badge = document.getElementById('cad-ortho-badge');
+      if (badge) badge.hidden = !ProjectController.polyDraw.ortho;
+      App.toast(
+        ProjectController.polyDraw.ortho
+          ? 'CAD Ortho ON (Locked to 0°, 90°, 180°, 270°)'
+          : 'CAD Ortho OFF',
+        'info',
+        1000
+      );
+    },
+
+    updateCadCrosshair(e) {
+      const overlay = document.getElementById('cad-crosshair-overlay');
+      if (!overlay) return;
+      overlay.hidden = false;
+
+      const viewport = document.getElementById('map-viewport');
+      const transformEl = document.getElementById('map-transform');
+      if (!viewport || !transformEl) return;
+
+      const vpRect = viewport.getBoundingClientRect();
+      const tRect = transformEl.getBoundingClientRect();
+      if (!vpRect.width || !tRect.width) return;
+
+      let rawX = Math.max(0, Math.min(100, ((e.clientX - tRect.left) / tRect.width) * 100));
+      let rawY = Math.max(0, Math.min(100, ((e.clientY - tRect.top) / tRect.height) * 100));
+      rawX = Math.round(rawX * 100) / 100;
+      rawY = Math.round(rawY * 100) / 100;
+
+      const pts = ProjectController.polyDraw.points;
+      const isOrtho = ProjectController.polyDraw.ortho || e.shiftKey;
+
+      if (isOrtho && pts.length > 0) {
+        const last = pts[pts.length - 1];
+        const dx = Math.abs(rawX - last[0]);
+        const dy = Math.abs(rawY - last[1]);
+        if (dx >= dy) {
+          rawY = last[1];
+        } else {
+          rawX = last[0];
+        }
+      }
+
+      let snapped = false;
+      if (pts.length >= 2) {
+        const start = pts[0];
+        const distToStart = Math.hypot(rawX - start[0], rawY - start[1]);
+        if (distToStart <= 2.8) {
+          rawX = start[0];
+          rawY = start[1];
+          snapped = true;
+        }
+      }
+      ProjectController.polyDraw.snapped = snapped;
+
+      const finalVx = tRect.left + (rawX / 100) * tRect.width - vpRect.left;
+      const finalVy = tRect.top + (rawY / 100) * tRect.height - vpRect.top;
+
+      const hLine = document.getElementById('cad-crosshair-h');
+      const vLine = document.getElementById('cad-crosshair-v');
+      const pickbox = document.getElementById('cad-pickbox');
+      const readout = document.getElementById('cad-dynamic-readout');
+      const snapMarker = document.getElementById('cad-snap-marker');
+
+      if (hLine) hLine.style.top = `${finalVy}px`;
+      if (vLine) vLine.style.left = `${finalVx}px`;
+      if (pickbox) {
+        pickbox.style.left = `${finalVx}px`;
+        pickbox.style.top = `${finalVy}px`;
+      }
+
+      if (snapMarker) {
+        if (snapped && pts.length >= 2) {
+          snapMarker.style.left = `${finalVx}px`;
+          snapMarker.style.top = `${finalVy}px`;
+          snapMarker.hidden = false;
+        } else {
+          snapMarker.hidden = true;
+        }
+      }
+
+      if (readout) {
+        readout.style.left = `${Math.min(vpRect.width - 150, finalVx + 14)}px`;
+        readout.style.top = `${Math.min(vpRect.height - 40, finalVy + 14)}px`;
+
+        const distEl = document.getElementById('cad-dim-dist');
+        const angEl = document.getElementById('cad-dim-ang');
+        const orthoBadge = document.getElementById('cad-ortho-badge');
+
+        if (orthoBadge) orthoBadge.hidden = !isOrtho;
+
+        if (pts.length > 0) {
+          const last = pts[pts.length - 1];
+          const dx = rawX - last[0];
+          const dy = rawY - last[1];
+          const distPct = Math.hypot(dx, dy);
+          let deg = Math.round((Math.atan2(-dy, dx) * (180 / Math.PI) + 360) % 360);
+          if (distEl) distEl.textContent = `${(distPct * 10).toFixed(2)} m`;
+          if (angEl) angEl.textContent = `${deg}°`;
+          readout.hidden = false;
+        } else {
+          readout.hidden = true;
+        }
+      }
+
+      ProjectController.polyDraw.currentMouse = [rawX, rawY];
+      ProjectController.renderPolygons();
+    },
+
+    openCadGripMenu(e, assetId, idx, isEdge) {
+      e.preventDefault();
+      e.stopPropagation();
+      ProjectController.cadMenuTarget = { assetId, idx, isEdge };
+      const menu = document.getElementById('cad-grip-menu');
+      if (!menu) return;
+      const viewport = document.getElementById('map-viewport');
+      const vpRect = viewport
+        ? viewport.getBoundingClientRect()
+        : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+
+      const posX = Math.max(10, Math.min(vpRect.width - 150, e.clientX - vpRect.left + 5));
+      const posY = Math.max(10, Math.min(vpRect.height - 120, e.clientY - vpRect.top + 5));
+      menu.style.left = `${posX}px`;
+      menu.style.top = `${posY}px`;
+      menu.hidden = false;
+    },
+
+    closeCadGripMenu() {
+      const menu = document.getElementById('cad-grip-menu');
+      if (menu) menu.hidden = true;
+      ProjectController.cadMenuTarget = null;
+    },
+
+    bindCadGripMenu() {
+      const menu = document.getElementById('cad-grip-menu');
+      if (!menu) return;
+
+      menu.querySelectorAll('[data-grip-action]').forEach((item) => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const action = item.dataset.gripAction;
+          const target = ProjectController.cadMenuTarget;
+          ProjectController.closeCadGripMenu();
+          if (!target) return;
+
+          const asset = ProjectController.assets.find((a) => a.id === target.assetId);
+          if (!asset || !Array.isArray(asset.polygon)) return;
+
+          if (action === 'stretch') {
+            if (target.isEdge) {
+              const vi = target.idx;
+              const nextVi = (vi + 1) % asset.polygon.length;
+              const mid = [
+                Math.round(((asset.polygon[vi][0] + asset.polygon[nextVi][0]) / 2) * 100) / 100,
+                Math.round(((asset.polygon[vi][1] + asset.polygon[nextVi][1]) / 2) * 100) / 100,
+              ];
+              asset.polygon.splice(vi + 1, 0, mid);
+              ProjectController.persistAssetPolygon(asset);
+              ProjectController.vertexDrag = {
+                assetId: target.assetId,
+                idx: vi + 1,
+                moved: true,
+              };
+              App.toast('Stretching new edge vertex — move cursor to position', 'info');
+            } else {
+              ProjectController.vertexDrag = {
+                assetId: target.assetId,
+                idx: target.idx,
+                moved: true,
+              };
+              App.toast('Stretching vertex — move cursor to position', 'info');
+            }
+          } else if (action === 'add') {
+            const vi = target.idx;
+            const nextVi = (vi + 1) % asset.polygon.length;
+            const mid = [
+              Math.round(((asset.polygon[vi][0] + asset.polygon[nextVi][0]) / 2) * 100) / 100,
+              Math.round(((asset.polygon[vi][1] + asset.polygon[nextVi][1]) / 2) * 100) / 100,
+            ];
+            asset.polygon.splice(vi + 1, 0, mid);
+            ProjectController.persistAssetPolygon(asset);
+            App.toast('Added vertex to polygon', 'success');
+          } else if (action === 'remove') {
+            ProjectController.removePolygonVertexAt(target.assetId, target.idx);
+          }
+        });
+      });
+
+      window.addEventListener('click', () => {
+        ProjectController.closeCadGripMenu();
+      });
+    },
+
     bindPolygonDrawing() {
       document.getElementById('draw-poly-btn')?.addEventListener('click', () => {
         if (ProjectController.polyDraw.active) {
@@ -2014,10 +2324,14 @@
           ProjectController.startPolygonDraw(null);
         }
       });
+      document.getElementById('poly-ortho-btn')?.addEventListener('click', () => {
+        ProjectController.toggleOrthoMode();
+      });
       document.getElementById('poly-undo-btn')?.addEventListener('click', () => {
         if (ProjectController.polyDraw.points.length > 0) {
           ProjectController.polyDraw.points.pop();
-          document.getElementById('poly-finish-btn').disabled = ProjectController.polyDraw.points.length < 3;
+          document.getElementById('poly-finish-btn').disabled =
+            ProjectController.polyDraw.points.length < 3;
           ProjectController.renderPolygons();
         }
       });
@@ -2029,16 +2343,69 @@
       });
 
       const viewport = document.getElementById('map-viewport');
+      viewport?.addEventListener('mousemove', (e) => {
+        if (!ProjectController.polyDraw.active) return;
+        ProjectController.updateCadCrosshair(e);
+      });
+      viewport?.addEventListener('mouseleave', () => {
+        if (!ProjectController.polyDraw.active) return;
+        const overlay = document.getElementById('cad-crosshair-overlay');
+        if (overlay) overlay.hidden = true;
+      });
+      viewport?.addEventListener('mouseenter', () => {
+        if (ProjectController.polyDraw.active) {
+          const overlay = document.getElementById('cad-crosshair-overlay');
+          if (overlay) overlay.hidden = false;
+        }
+      });
+
       viewport?.addEventListener('click', (e) => {
         if (!ProjectController.polyDraw.active) return;
+        if (e.target.closest('#poly-draw-bar') || e.target.closest('#cad-grip-menu')) return;
+
         const transformEl = document.getElementById('map-transform');
         if (!transformEl) return;
         const rect = transformEl.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
-        const xPct = Math.round(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)) * 100) / 100;
-        const yPct = Math.round(Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)) * 100) / 100;
-        ProjectController.polyDraw.points.push([xPct, yPct]);
-        document.getElementById('poly-finish-btn').disabled = ProjectController.polyDraw.points.length < 3;
+
+        // Snapped to start vertex to close shape
+        if (ProjectController.polyDraw.snapped && ProjectController.polyDraw.points.length >= 3) {
+          ProjectController.finishPolygonDraw();
+          return;
+        }
+
+        let xPct, yPct;
+        if (ProjectController.polyDraw.currentMouse) {
+          [xPct, yPct] = ProjectController.polyDraw.currentMouse;
+        } else {
+          xPct =
+            Math.round(
+              Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)) * 100
+            ) / 100;
+          yPct =
+            Math.round(
+              Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)) * 100
+            ) / 100;
+        }
+
+        const pts = ProjectController.polyDraw.points;
+        if (pts.length > 0) {
+          const last = pts[pts.length - 1];
+          if (Math.hypot(xPct - last[0], yPct - last[1]) < 0.25) return;
+        }
+
+        pts.push([xPct, yPct]);
+        const finishBtn = document.getElementById('poly-finish-btn');
+        if (finishBtn) finishBtn.disabled = pts.length < 3;
+
+        const hint = document.getElementById('poly-draw-hint');
+        if (hint) {
+          if (pts.length >= 3) {
+            hint.textContent = 'Click start point (green square) or press Enter to finish';
+          } else {
+            hint.textContent = `Click next corner (${pts.length}/3+ points)`;
+          }
+        }
         ProjectController.renderPolygons();
       });
 
@@ -2233,6 +2600,7 @@
 
         // Escape cancels active tools, exits presentation mode, or closes top modal
         if (e.key === 'Escape') {
+          ProjectController.closeCadGripMenu();
           if (openModal) return; // Handled by App global Escape
           if (ProjectController.polyDraw.active) {
             e.preventDefault();
@@ -2271,8 +2639,13 @@
 
         if (openModal) return;
 
-        // While drawing polygon: Undo (U / Ctrl+Z) & Finish (Enter)
+        // While drawing polygon: Undo (U / Ctrl+Z), Toggle Ortho (O) & Finish (Enter)
         if (ProjectController.polyDraw.active) {
+          if (key === 'o') {
+            e.preventDefault();
+            ProjectController.toggleOrthoMode();
+            return;
+          }
           if (key === 'u' || ((e.ctrlKey || e.metaKey) && key === 'z')) {
             e.preventDefault();
             document.getElementById('poly-undo-btn')?.click();
@@ -2404,10 +2777,32 @@
     startPolygonDraw(editingAssetId = null) {
       ProjectController.closeSmartAssist();
       document.getElementById('doc-popup').hidden = true;
-      ProjectController.polyDraw = { active: true, points: [], editingAssetId };
+      ProjectController.polyDraw = {
+        active: true,
+        points: [],
+        editingAssetId,
+        ortho: false,
+        currentMouse: null,
+        snapped: false,
+      };
       document.getElementById('map-viewport')?.classList.add('poly-drawing');
-      document.getElementById('poly-draw-bar').hidden = false;
-      document.getElementById('poly-finish-btn').disabled = true;
+      const bar = document.getElementById('poly-draw-bar');
+      if (bar) bar.hidden = false;
+      const finishBtn = document.getElementById('poly-finish-btn');
+      if (finishBtn) finishBtn.disabled = true;
+      const orthoBtn = document.getElementById('poly-ortho-btn');
+      if (orthoBtn) {
+        orthoBtn.textContent = 'Ortho: OFF';
+        orthoBtn.classList.remove('btn-primary');
+        orthoBtn.classList.add('btn-ghost');
+      }
+      const overlay = document.getElementById('cad-crosshair-overlay');
+      if (overlay) overlay.hidden = false;
+      const snapMarker = document.getElementById('cad-snap-marker');
+      if (snapMarker) snapMarker.hidden = true;
+      const readout = document.getElementById('cad-dynamic-readout');
+      if (readout) readout.hidden = true;
+
       document.getElementById('poly-draw-hint').textContent = editingAssetId
         ? 'Redrawing plot boundary — click corners (3+ points)'
         : 'Click plot corners on map (3+ points)';
@@ -2415,10 +2810,23 @@
     },
 
     cancelPolygonDraw() {
-      ProjectController.polyDraw = { active: false, points: [], editingAssetId: null };
+      ProjectController.polyDraw = {
+        active: false,
+        points: [],
+        editingAssetId: null,
+        ortho: false,
+        currentMouse: null,
+        snapped: false,
+      };
       document.getElementById('map-viewport')?.classList.remove('poly-drawing');
       const bar = document.getElementById('poly-draw-bar');
       if (bar) bar.hidden = true;
+      const overlay = document.getElementById('cad-crosshair-overlay');
+      if (overlay) overlay.hidden = true;
+      const snapMarker = document.getElementById('cad-snap-marker');
+      if (snapMarker) snapMarker.hidden = true;
+      const readout = document.getElementById('cad-dynamic-readout');
+      if (readout) readout.hidden = true;
       ProjectController.renderPolygons();
     },
 

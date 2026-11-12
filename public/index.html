@@ -270,10 +270,35 @@
             <svg class="polygon-layer" id="polygon-layer" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
             <div class="hotspot-layer" id="hotspot-layer"></div>
           </div>
+          <!-- CAD Interactive Crosshair & Dynamic Readout Overlay -->
+          <div class="cad-crosshair-overlay" id="cad-crosshair-overlay" hidden>
+            <div class="cad-crosshair-h" id="cad-crosshair-h"></div>
+            <div class="cad-crosshair-v" id="cad-crosshair-v"></div>
+            <div class="cad-pickbox" id="cad-pickbox"></div>
+            <div class="cad-dynamic-readout" id="cad-dynamic-readout" hidden>
+              <span class="cad-dim-dist" id="cad-dim-dist">0.0 m</span>
+              <span class="cad-dim-ang" id="cad-dim-ang">0°</span>
+              <span class="cad-ortho-badge" id="cad-ortho-badge" hidden>ORTHO</span>
+            </div>
+            <div class="cad-snap-marker" id="cad-snap-marker" hidden></div>
+          </div>
+          <!-- CAD Grip Context Menu -->
+          <div class="cad-grip-menu" id="cad-grip-menu" hidden>
+            <div class="cad-menu-item" data-grip-action="stretch">
+              <span class="cad-menu-icon">📐</span> Stretch Vertex
+            </div>
+            <div class="cad-menu-item" data-grip-action="add">
+              <span class="cad-menu-icon">➕</span> Add Vertex
+            </div>
+            <div class="cad-menu-item cad-menu-del" data-grip-action="remove">
+              <span class="cad-menu-icon">🗑️</span> Remove Vertex
+            </div>
+          </div>
         </div>
         <!-- Polygon Drawing Floating Bar -->
         <div class="poly-draw-bar" id="poly-draw-bar" hidden>
           <span id="poly-draw-hint">Click plot corners on map (3+ points)</span>
+          <button type="button" class="btn btn-ghost btn-xs" id="poly-ortho-btn" title="Toggle Ortho Mode (O)">Ortho: OFF</button>
           <button type="button" class="btn btn-ghost btn-xs" id="poly-undo-btn">Undo</button>
           <button type="button" class="btn btn-primary btn-xs" id="poly-finish-btn" disabled>Finish Zone</button>
           <button type="button" class="btn btn-ghost btn-xs" id="poly-cancel-btn">Cancel</button>
@@ -646,7 +671,9 @@
             <div class="shortcut-row"><span>Toggle Edit Mode</span><kbd>E</kbd></div>
             <div class="shortcut-row"><span>Draw Zone (polygon corners)</span><kbd>P</kbd> / <kbd>D</kbd></div>
             <div class="shortcut-row"><span>Undo last polygon corner</span><kbd>U</kbd> / <kbd>Ctrl+Z</kbd></div>
-            <div class="shortcut-row"><span>Finish drawn polygon (3+ pts)</span><kbd>Enter</kbd></div>
+            <div class="shortcut-row"><span>Toggle CAD Ortho Mode (90° lock)</span><kbd>O</kbd> / <kbd>Shift</kbd></div>
+            <div class="shortcut-row"><span>Finish drawn polygon (3+ pts)</span><kbd>Enter</kbd> / <kbd>Click start</kbd></div>
+            <div class="shortcut-row"><span>CAD Grip Context Menu</span><kbd>Right-click grip</kbd></div>
             <div class="shortcut-row"><span>Trace Click (Vector CAD / SlimSAM)</span><kbd>T</kbd></div>
             <div class="shortcut-row"><span>Add New Asset</span><kbd>N</kbd></div>
           </div>
