@@ -1,8 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
-
-const DB_PATH = path.join(__dirname, '..', '..', 'data', 'arcsite.db');
+const { DB_PATH } = require('../config/paths');
 
 let db;
 

@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const zlib = require('zlib');
 const sharp = require('sharp');
+const { UPLOADS_DIR } = require('../config/paths');
 
 // Extension → file_type mapping
 const EXT_TYPE_MAP = {
@@ -309,7 +310,7 @@ function extractPptxOutline(buf) {
 async function extractFileThumbnail(filePath, originalName, projectId, fileId) {
   const ext = path.extname(originalName).toLowerCase();
   const fileType = getFileType(originalName);
-  const thumbDir = path.join(__dirname, '..', '..', 'uploads', projectId, 'thumbs');
+  const thumbDir = path.join(UPLOADS_DIR, projectId, 'thumbs');
 
   try {
     if (fileType === 'image' && ext !== '.svg') {

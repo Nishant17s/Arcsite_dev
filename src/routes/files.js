@@ -29,8 +29,9 @@ const {
   extractFileThumbnail
 } = require('../services/fileProcessor');
 
+const { STORAGE_ROOT, UPLOADS_DIR } = require('../config/paths');
+
 const router = express.Router();
-const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 
 function cleanupUploadedFiles(files) {
   if (!Array.isArray(files)) return;
@@ -271,8 +272,7 @@ router.get('/:id/files/:fileId/thumbnail', validateProjectId, requireProjectAcce
       return res.status(404).json({ success: false, error: 'Thumbnail not found' });
     }
 
-    const rootDir = path.resolve(__dirname, '..', '..');
-    const thumbPath = path.resolve(rootDir, file.thumbnail_path);
+    const thumbPath = path.resolve(STORAGE_ROOT, file.thumbnail_path);
     const expectedPrefix = path.resolve(UPLOADS_DIR, req.params.id, 'thumbs') + path.sep;
     if (!thumbPath.startsWith(expectedPrefix) || !fs.existsSync(thumbPath)) {
       return res.status(404).json({ success: false, error: 'Thumbnail not found on disk' });

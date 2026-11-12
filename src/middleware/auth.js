@@ -3,8 +3,9 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { getUserById } = require('../db/database');
+const { DATA_DIR } = require('../config/paths');
 
-const SECRET_FILE = path.join(__dirname, '..', '..', 'data', '.jwt-secret');
+const SECRET_FILE = path.join(DATA_DIR, '.jwt-secret');
 
 function loadOrCreateJwtSecret() {
   if (process.env.JWT_SECRET) {
@@ -36,19 +37,23 @@ function generateToken(user) {
   );
 }
 
-function setTokenCookie(res, token) {
+function isHttpsRequest(req) {
+  return Boolean(req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https'));
+}
+
+function setTokenCookie(res, token, req) {
   res.cookie('token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isHttpsRequest(req) || (process.env.NODE_ENV === 'production' && !req),
     sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   });
 }
 
-function clearTokenCookie(res) {
+function clearTokenCookie(res, req) {
   res.clearCookie('token', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isHttpsRequest(req) || (process.env.NODE_ENV === 'production' && !req),
     sameSite: 'lax'
   });
 }

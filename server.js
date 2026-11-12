@@ -14,6 +14,7 @@ const fileRoutes = require('./src/routes/files');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.set('trust proxy', 1);
 
 // Init database
 initDB();
@@ -78,6 +79,11 @@ app.use(
     },
   })
 );
+
+// Health check (Railway / reverse proxy readiness)
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, status: 'healthy', uptime: Math.round(process.uptime()) });
+});
 
 // API Routes
 app.use('/api/auth', authRoutes);

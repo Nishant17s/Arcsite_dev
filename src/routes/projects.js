@@ -11,9 +11,9 @@ const {
   getFilesGroupedByCategory, logActivity, getProjectActivity
 } = require('../db/database');
 const { getMimeType } = require('../services/fileProcessor');
+const { UPLOADS_DIR } = require('../config/paths');
 
 const router = express.Router();
-const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 const DEFAULT_MAP_PATH = path.join(__dirname, '..', '..', 'public', 'assets', 'site-map.svg');
 
 // Multer config for map uploads

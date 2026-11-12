@@ -40,7 +40,7 @@ router.post('/register', async (req, res, next) => {
     const user = createUser({ id, email, password_hash, name, role: 'editor' });
 
     const token = generateToken(user);
-    setTokenCookie(res, token);
+    setTokenCookie(res, token, req);
 
     res.status(201).json({
       success: true,
@@ -77,7 +77,7 @@ router.post('/login', async (req, res, next) => {
       name: user.name,
       role: user.role
     });
-    setTokenCookie(res, token);
+    setTokenCookie(res, token, req);
 
     res.json({
       success: true,
@@ -90,7 +90,7 @@ router.post('/login', async (req, res, next) => {
 
 // POST /api/auth/logout
 router.post('/logout', (req, res) => {
-  clearTokenCookie(res);
+  clearTokenCookie(res, req);
   res.json({ success: true });
 });
 

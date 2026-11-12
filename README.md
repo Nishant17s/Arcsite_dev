@@ -50,10 +50,13 @@ A full-stack project management, interactive CAD site-plan mapping, and multi-fo
 
 ```text
 interactive-site-navigator/
-├── server.js                      # Express entry point, Helmet CSP, static no-cache headers, API routing
+├── server.js                      # Express entry point, Helmet CSP, proxy/health check, API routing
+├── railway.json                   # Railway build, start command & /api/health readiness check
 ├── package.json
 ├── .gitignore
 ├── src/
+│   ├── config/
+│   │   └── paths.js               # STORAGE_DIR / RAILWAY_VOLUME_MOUNT_PATH resolver for DB & uploads
 │   ├── db/
 │   │   └── database.js            # SQLite schema & initialization (users, projects, assets, files, activity_log)
 │   ├── middleware/
@@ -100,7 +103,14 @@ Open **`http://localhost:3000`** in Chrome/Edge (WebGPU-capable browser recommen
 
 Optional environment variables:
 - `PORT` — HTTP port (defaults to `3000`)
-- `JWT_SECRET` — Secret key for signing auth cookies (auto-generated fallback used if unset for local dev)
+- `JWT_SECRET` — Secret key for signing auth cookies (persisted secret generated if unset)
+- `STORAGE_DIR` — Root folder containing both `data/arcsite.db` and `uploads/` (automatically uses `RAILWAY_VOLUME_MOUNT_PATH` when a Railway Volume is attached)
+
+### Deploy on Railway (Recommended for 2–4+ Projects)
+1. In **Railway**, click **New Project → Deploy from GitHub repo** and select **`Nishant17s/Arcsite_dev`**.
+2. Open your service **Variables** tab and set **`JWT_SECRET`** to a long random string.
+3. Open your service **Volumes** (Right-click canvas or Settings → Add Volume) and attach one volume (e.g., mount path `/storage`). Railway injects `RAILWAY_VOLUME_MOUNT_PATH`, which `src/config/paths.js` automatically uses to store both `data/arcsite.db` and `uploads/` persistently across redeploys.
+4. Railway reads `railway.json`, runs `npm start`, verifies `GET /api/health`, and generates your HTTPS URL.
 
 ---
 
@@ -108,6 +118,7 @@ Optional environment variables:
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
+| `GET` | `/api/health` | Service health check (returns `{ ok: true, status: 'healthy' }`) |
 | `POST` | `/api/auth/register` | Create account & set session cookie |
 | `POST` | `/api/auth/login` | Authenticate & set session cookie |
 | `POST` | `/api/auth/logout` | Clear session cookie |
