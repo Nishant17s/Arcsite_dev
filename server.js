@@ -82,7 +82,14 @@ app.use(
 
 // Health check (Railway / reverse proxy readiness)
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, status: 'healthy', uptime: Math.round(process.uptime()) });
+  const commit = (process.env.RAILWAY_GIT_COMMIT_SHA || 'bb7973c').slice(0, 7);
+  res.json({
+    ok: true,
+    status: 'healthy',
+    uptime: Math.round(process.uptime()),
+    commit,
+    version: '2.1.0-masterplan'
+  });
 });
 
 // API Routes
