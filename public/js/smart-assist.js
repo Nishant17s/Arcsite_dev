@@ -8,11 +8,11 @@
 (function () {
   'use strict';
 
-  const NOISE_ONLY_RE = /^[\d.,+\-*/°'"()[\]\s:;%=]+$/;
+  const NOISE_ONLY_RE = /^[\d.,+\-*/°'"()[\]\s:;%=#_]+$/;
   const AREA_RE = /(\d[\d,.]*\s*(?:SQ\.?\s*M|SQM|M2|SQ\.?\s*FT|SQFT|ACRES?|HECTARES?|HA)\b)/i;
-  const NOISE_TERMS_RE = /\b(HIRANANDANI|INDUSTRIAL\s*PARKS|GROUND\s*COVERAGE|TOTAL\s*PLOT\s*AREA|OVERALL\s*SITE\s*AREA|DEVELOPMENT\s*DETAILS|LAND\s*BREAKUP|OPTION\s*[-0-9]+|REVISION|SCALE\s*1\s*:|SHEET\s*\d+|DRAWING\s*NO|AS\s*PER\s*THE\s*PLINE|PATRA|ALL\s*DIMENSIONS|DO\s*NOT\s*SCALE|PARTICULARS|DESCRIPTION|PERCENTAGE|S\.?NO\.?)\b/i;
+  const NOISE_TERMS_RE = /\b(HIRANANDANI|INDUSTRIAL\s*PARKS|GROUND\s*COVERAGE|TOTAL\s*PLOT\s*AREA|OVERALL\s*SITE\s*AREA|DEVELOPMENT\s*DETAILS|LAND\s*BREAKUP|OPTION\s*[-0-9]+|REVISION|SCALE\s*1\s*:|SHEET\s*\d+|DRAWING\s*NO|AS\s*PER\s*THE\s*PLINE|PATRA|PLINE|\bLINE\b|ALL\s*DIMENSIONS|DO\s*NOT\s*SCALE|PARTICULARS|DESCRIPTION|PERCENTAGE|S\.?NO\.?|NORTH|LEGEND|CLIENT|ARCHITECT|CONSULTANT|APPROVED|CHECKED|DRAWN)\b/i;
   const MATH_EQ_RE = /=|\b\d+[\d,.]*\s*=\s*[\d,.]*%|\b\d+[\d,.]*%\b/i;
-  const STOPWORDS_RE = /^(?:AS|PER|THE|OF|AND|BY|FOR|IN|AT|TO|FROM|WITH|ON|A|AN|IS|ARE|LINE|PLINE|OPTION|REV|NO|GROUND|COVERAGE)$/i;
+  const STOPWORDS_RE = /^(?:AS|PER|THE|OF|AND|BY|FOR|IN|AT|TO|FROM|WITH|ON|A|AN|IS|ARE|LINE|PLINE|PATRA|OPTION|REV|REVISION|NO|GROUND|COVERAGE|SQMT|SQM|SQFT|ACRE|ACRES|PERCENT|POR|DETAILS)$/i;
 
   function classifyLabel(text) {
     const u = text.toUpperCase();
@@ -61,9 +61,18 @@
   function isMasterplanNoise(text, xPct, yPct, siteRoi) {
     const t = String(text || '').trim();
     if (t.length <= 1) return true;
-    if (STOPWORDS_RE.test(t)) return true;
+    if (NOISE_ONLY_RE.test(t)) return true;
+    if (/^[=\d.,+\-*/°'"()[\]\s:;%#_]+$/.test(t)) return true;
     if (MATH_EQ_RE.test(t)) return true;
+    if (STOPWORDS_RE.test(t)) return true;
     if (NOISE_TERMS_RE.test(t)) return true;
+    if (/\b(PLINE|PATRA|LINE|SQMT|SQM|SQFT|ACRES?|HECTARES?|GROUND|COVERAGE|OPTION|REV|REVISION|SHEET|DRAWING|SCALE|PERCENTAGE)\b/i.test(t)) {
+      const stripped = t
+        .replace(/\b(PLINE|PATRA|LINE|SQMT|SQM|SQFT|ACRES?|HECTARES?|GROUND|COVERAGE|OPTION|REV|REVISION|SHEET|DRAWING|SCALE|PERCENTAGE|\d+[\d,.]*)\b/gi, '')
+        .replace(/[=\-[\]():;,.]/g, '')
+        .trim();
+      if (stripped.length < 3) return true;
+    }
     if (siteRoi && (yPct < siteRoi.minY || yPct > siteRoi.maxY || xPct < siteRoi.minX || xPct > siteRoi.maxX)) {
       return true;
     }
@@ -98,13 +107,17 @@
       if (maxC > 0.88) category = 'white';
       else if (maxC < 0.2) category = 'black';
       else category = 'road';
-    } else if (r > 0.72 && g > 0.48 && b < 0.65 && (r - b) > 0.2) {
+    } else if (r > 0.65 && g > 0.45 && b < 0.65 && (r - b) > 0.12) {
+      // Yellow, amber, gold, orange, terracotta building roofs & pads
       category = 'building';
-    } else if (g > 0.45 && g > r + 0.08 && g > b + 0.08) {
+    } else if (g > 0.40 && g > r + 0.05 && g > b + 0.05) {
+      // Green landscape, lawns, parks, OSR
       category = 'landscape';
-    } else if (b > 0.55 && b > r + 0.15 && b > g + 0.05) {
+    } else if (b > 0.50 && b > r + 0.10 && (g > 0.35 || b > g)) {
+      // Blue/cyan water bodies, STP, WTP, sumps
       category = 'utility';
-    } else if (r > 0.55 && b > 0.45 && g < 0.4) {
+    } else if (r > 0.50 && b > 0.40 && g < 0.45) {
+      // Magenta/pink boundary / setbacks
       category = 'boundary';
     }
 
@@ -137,89 +150,135 @@
     };
   }
 
+  /* ========================================================================
+     Shape-Preserving Building & Parcel Consolidator
+     - NEVER replaces complex polygons with 4-point bounding boxes
+     - Deduplicates overlapping identical fills & strokes (IoU > 0.80)
+     - Preserves exact multi-vertex L-shapes, stepped footprints, angled bays
+     - Groups only touching roof facets without merging separate buildings
+     ======================================================================== */
   function clusterBuildingPolys(polys) {
-    const buildingPolys = polys.filter(p => p.category === 'building');
-    const otherPolys = polys.filter(p => p.category !== 'building');
+    if (!Array.isArray(polys) || polys.length <= 1) return polys || [];
 
-    if (buildingPolys.length <= 1) return polys;
+    const buildings = polys.filter((p) => p.category === 'building');
+    const others = polys.filter((p) => p.category !== 'building');
 
-    let clusters = buildingPolys.map(p => {
-      const minX = parseFloat(p.bbox.x);
-      const minY = parseFloat(p.bbox.y);
-      const w = parseFloat(p.bbox.w);
-      const h = parseFloat(p.bbox.h);
-      return {
-        minX,
-        minY,
-        maxX: minX + w,
-        maxY: minY + h,
-        subPolys: [p],
-      };
-    });
+    const bboxIoU = (b1, b2) => {
+      const x1 = Math.max(parseFloat(b1.x), parseFloat(b2.x));
+      const y1 = Math.max(parseFloat(b1.y), parseFloat(b2.y));
+      const x2 = Math.min(parseFloat(b1.x) + parseFloat(b1.w), parseFloat(b2.x) + parseFloat(b2.w));
+      const y2 = Math.min(parseFloat(b1.y) + parseFloat(b1.h), parseFloat(b2.y) + parseFloat(b2.h));
+      const interW = Math.max(0, x2 - x1);
+      const interH = Math.max(0, y2 - y1);
+      const interArea = interW * interH;
+      const area1 = parseFloat(b1.w) * parseFloat(b1.h);
+      const area2 = parseFloat(b2.w) * parseFloat(b2.h);
+      const unionArea = area1 + area2 - interArea;
+      return unionArea > 0 ? interArea / unionArea : 0;
+    };
 
-    let merged = true;
-    while (merged) {
-      merged = false;
-      const next = [];
-      const used = new Set();
-      for (let i = 0; i < clusters.length; i++) {
-        if (used.has(i)) continue;
-        let curr = { ...clusters[i], subPolys: [...clusters[i].subPolys] };
-        for (let j = i + 1; j < clusters.length; j++) {
-          if (used.has(j)) continue;
-          const other = clusters[j];
-          if (
-            curr.minX <= other.maxX + 1.8 &&
-            curr.maxX >= other.minX - 1.8 &&
-            curr.minY <= other.maxY + 1.8 &&
-            curr.maxY >= other.minY - 1.8
-          ) {
-            curr.minX = Math.min(curr.minX, other.minX);
-            curr.minY = Math.min(curr.minY, other.minY);
-            curr.maxX = Math.max(curr.maxX, other.maxX);
-            curr.maxY = Math.max(curr.maxY, other.maxY);
-            curr.subPolys.push(...other.subPolys);
-            used.add(j);
-            merged = true;
-          }
+    const isContained = (pSmall, pLarge) => {
+      if (pSmall.area >= pLarge.area * 0.85) return false;
+      const bS = pSmall.bbox;
+      const bL = pLarge.bbox;
+      const sMinX = parseFloat(bS.x);
+      const sMinY = parseFloat(bS.y);
+      const sMaxX = sMinX + parseFloat(bS.w);
+      const sMaxY = sMinY + parseFloat(bS.h);
+      const lMinX = parseFloat(bL.x) - 0.4;
+      const lMinY = parseFloat(bL.y) - 0.4;
+      const lMaxX = lMinX + parseFloat(bL.w) + 0.8;
+      const lMaxY = lMinY + parseFloat(bL.h) + 0.8;
+      return sMinX >= lMinX && sMaxX <= lMaxX && sMinY >= lMinY && sMaxY <= lMaxY;
+    };
+
+    // 1. Deduplicate near-identical polygons (fill + stroke pairs)
+    const dedupedBuildings = [];
+    for (const b of buildings) {
+      const dupeIdx = dedupedBuildings.findIndex((existing) => bboxIoU(existing.bbox, b.bbox) > 0.80);
+      if (dupeIdx >= 0) {
+        const existing = dedupedBuildings[dupeIdx];
+        if ((b.polygon?.length || 0) > (existing.polygon?.length || 0) || (b.fillColor && !existing.fillColor)) {
+          dedupedBuildings[dupeIdx] = b;
         }
-        next.push(curr);
+      } else {
+        dedupedBuildings.push(b);
       }
-      clusters = next;
     }
 
-    const consolidated = clusters.map(c => {
-      const minX = Math.round(c.minX * 100) / 100;
-      const minY = Math.round(c.minY * 100) / 100;
-      const maxX = Math.round(c.maxX * 100) / 100;
-      const maxY = Math.round(c.maxY * 100) / 100;
-      const w = Math.round((maxX - minX) * 100) / 100;
-      const h = Math.round((maxY - minY) * 100) / 100;
-
-      const poly = [
-        [minX, minY],
-        [maxX, minY],
-        [maxX, maxY],
-        [minX, maxY],
-      ];
-      const totalArea = c.subPolys.reduce((sum, p) => sum + p.area, 0);
-
-      return {
-        polygon: poly,
-        bbox: {
-          x: minX.toFixed(1) + '%',
-          y: minY.toFixed(1) + '%',
-          w: Math.max(2.5, w).toFixed(1) + '%',
-          h: Math.max(2.5, h).toFixed(1) + '%',
-        },
-        area: Math.max(totalArea, w * h * 0.75),
-        solidity: 0.85,
-        category: 'building',
-        source: 'vector-pdf',
-      };
+    // 2. Remove interior sub-patches (skylights, internal hatch quads)
+    const filteredBuildings = dedupedBuildings.filter((b, idx) => {
+      for (let j = 0; j < dedupedBuildings.length; j++) {
+        if (idx === j) continue;
+        if (isContained(b, dedupedBuildings[j])) return false;
+      }
+      return true;
     });
 
-    return [...consolidated, ...otherPolys];
+    // 3. Merge touching roof facets that share an edge
+    const mergeSharedEdge = (p1, p2) => {
+      const poly1 = p1.polygon;
+      const poly2 = p2.polygon;
+      if (!poly1 || !poly2 || poly1.length < 3 || poly2.length < 3) return null;
+
+      let sharedCount = 0;
+      for (const pt1 of poly1) {
+        for (const pt2 of poly2) {
+          if (Math.hypot(pt1[0] - pt2[0], pt1[1] - pt2[1]) < 0.35) {
+            sharedCount++;
+            break;
+          }
+        }
+      }
+
+      // If they share 2 or more vertices along an edge and are similarly colored
+      if (sharedCount >= 2) {
+        const allPts = poly1.concat(poly2);
+        const simp = cleanPolyPct(allPts, 0.35);
+        if (simp.length >= 4) {
+          const info = bboxFromPolyPct(simp);
+          const area = polygonAreaPct(simp);
+          return {
+            polygon: simp,
+            bbox: info.bbox,
+            area,
+            solidity: area / Math.max(0.01, info.wNum * info.hNum),
+            category: 'building',
+            fillColor: p1.fillColor || p2.fillColor,
+            source: 'vector-pdf',
+          };
+        }
+      }
+      return null;
+    };
+
+    let consolidated = [...filteredBuildings];
+    let changed = true;
+    let passes = 0;
+    while (changed && passes < 3) {
+      changed = false;
+      passes++;
+      const next = [];
+      const used = new Set();
+      for (let i = 0; i < consolidated.length; i++) {
+        if (used.has(i)) continue;
+        let mergedPoly = consolidated[i];
+        for (let j = i + 1; j < consolidated.length; j++) {
+          if (used.has(j)) continue;
+          const merged = mergeSharedEdge(mergedPoly, consolidated[j]);
+          if (merged) {
+            mergedPoly = merged;
+            used.add(j);
+            changed = true;
+          }
+        }
+        next.push(mergedPoly);
+      }
+      consolidated = next;
+    }
+
+    // ALWAYS return exact polygon vertices — NEVER replace with 4-corner bounding boxes!
+    return [...consolidated, ...others];
   }
 
   /* ========================================================================
@@ -936,9 +995,24 @@
         inside.forEach((c) => {
           c.claimed = true;
         });
-        const named = inside.find((c) => /\b(BUILDING|BLOCK|WAREHOUSE|SHED|BAY|FACILITY)\b/i.test(c.text)) || inside[0];
-        title = named.text;
-        area = named.area || (inside.find((c) => c.area)?.area || '');
+        const named =
+          inside.find((c) =>
+            /\b(BUILDING|BLOCK|WAREHOUSE|SHED|BAY|FACILITY|OFFICE|ADMIN|SECURITY|CABIN|STP|WTP|SUB\s*STATION)\b/i.test(c.text)
+          ) ||
+          inside.find((c) => !isDimensionNumber(c.text) && c.text.length >= 3 && !/^\d+$/.test(c.text.replace(/\D/g, '')));
+
+        if (named) {
+          title = named.text;
+          area = named.area || (inside.find((c) => c.area)?.area || '');
+        } else {
+          title =
+            parcel.category === 'building'
+              ? `Building 0${bldgCounter++}`
+              : parcel.category === 'landscape'
+              ? 'OSR / Green Belt'
+              : 'Zone';
+          area = inside.find((c) => c.area)?.area || '';
+        }
       } else {
         if (parcel.category === 'building') {
           title = `Building 0${bldgCounter++}`;
@@ -975,6 +1049,7 @@
     for (const cand of candidateLines) {
       if (cand.claimed) continue;
       if (!isArchitecturalKeyword(cand.text)) continue;
+      if (isMasterplanNoise(cand.text, cand.xPct, cand.yPct, siteRoi)) continue;
 
       const cls = classifyLabel(cand.text);
       labels.push({

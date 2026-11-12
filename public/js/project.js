@@ -3007,7 +3007,21 @@
       ProjectController.smartOptionText = optionText || '';
       const existingTitles = new Set(ProjectController.assets.map((a) => (a.title || '').toLowerCase()));
 
-      ProjectController.smartSuggestions = (labels || []).map((lbl, idx) => {
+      const cleanLabels = (labels || []).filter((lbl) => {
+        if (!lbl || !lbl.text) return false;
+        const t = lbl.text.trim();
+        if (t.length <= 1) return false;
+        if (/^[\d.,+\-*/°'"()[\]\s:;%=#_]+$/.test(t)) return false;
+        if (/=|\b\d+[\d,.]*\s*=\s*[\d,.]*%|\b\d+[\d,.]*%\b/i.test(t)) return false;
+        if (/^(?:AS|PER|THE|OF|AND|BY|FOR|IN|AT|TO|FROM|WITH|ON|A|AN|IS|ARE|LINE|PLINE|PATRA|OPTION|REV|NO|GROUND|COVERAGE|SQMT|SQM|ACRES?)$/i.test(t)) return false;
+        if (/\b(PLINE|PATRA|LINE|SQMT|COVERAGE|OPTION|PATRA)\b/i.test(t)) {
+          const stripped = t.replace(/\b(PLINE|PATRA|LINE|SQMT|COVERAGE|OPTION|PATRA|\d+[\d,.]*)\b/gi, '').replace(/[=\-[\]():;,.]/g, '').trim();
+          if (stripped.length < 3) return false;
+        }
+        return true;
+      });
+
+      ProjectController.smartSuggestions = cleanLabels.map((lbl, idx) => {
         const matched = window.SmartAssist
           ? window.SmartAssist.matchFilesToLabel(lbl.text, ProjectController.files)
           : [];
@@ -3049,15 +3063,19 @@
       ProjectController.smartAssistOpen = true;
       document.getElementById('smart-assist-panel').hidden = false;
 
+      const hasVectorPolys = Array.isArray(ProjectController.project?.detected_labels) &&
+        ProjectController.project.detected_labels.some((l) => Array.isArray(l.vectorPolygon) && l.vectorPolygon.length >= 3);
+
       if (
         ProjectController.smartSuggestions.length === 0 &&
         Array.isArray(ProjectController.project?.detected_labels) &&
-        ProjectController.project.detected_labels.length > 0
+        ProjectController.project.detected_labels.length > 0 &&
+        hasVectorPolys
       ) {
         ProjectController.loadSuggestionsFromLabels(ProjectController.project.detected_labels);
       }
 
-      if (ProjectController.smartSuggestions.length === 0) {
+      if (ProjectController.smartSuggestions.length === 0 || !hasVectorPolys) {
         await ProjectController.scanSitePlanPdf();
       } else {
         ProjectController.renderSmartAssistList();
