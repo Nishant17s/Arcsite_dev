@@ -15,3 +15,4 @@ module.exports = {
   DB_PATH,
   UPLOADS_DIR,
 };
+

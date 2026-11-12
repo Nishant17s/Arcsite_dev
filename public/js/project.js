@@ -2593,8 +2593,10 @@
       }
     },
 
-    loadSuggestionsFromLabels(labels, siteAreaText = '') {
+    loadSuggestionsFromLabels(labels, siteAreaText = '', groundCoverageText = '', optionText = '') {
       ProjectController.smartSiteArea = siteAreaText || '';
+      ProjectController.smartGroundCoverage = groundCoverageText || '';
+      ProjectController.smartOptionText = optionText || '';
       const existingTitles = new Set(ProjectController.assets.map((a) => (a.title || '').toLowerCase()));
 
       ProjectController.smartSuggestions = (labels || []).map((lbl, idx) => {
@@ -2670,6 +2672,38 @@
       const sitePdf = ProjectController.getSitePlanPdfFile();
 
       if (!sitePdf) {
+        const mapImg = document.getElementById('map-image');
+        if (mapImg && mapImg.naturalWidth && window.SmartAssist?.extractRasterColorParcels) {
+          if (summaryEl) summaryEl.textContent = 'Scanning master plan image colors…';
+          const rasterParcels = window.SmartAssist.extractRasterColorParcels(mapImg);
+          if (rasterParcels.length > 0) {
+            let bldgCount = 1;
+            const rasterLabels = rasterParcels.map((p) => {
+              const cx = parseFloat(p.bbox.x) + parseFloat(p.bbox.w) / 2;
+              const cy = parseFloat(p.bbox.y) + parseFloat(p.bbox.h) / 2;
+              const isBldg = p.category === 'building';
+              return {
+                text: isBldg ? `Building 0${bldgCount++}` : 'OSR / Green Belt',
+                area: '',
+                zone_type: isBldg ? 'building' : 'landscape',
+                icon: isBldg ? '🏢' : '🌳',
+                shape: 'polygon',
+                polygon: p.polygon,
+                vectorPolygon: p.polygon,
+                vectorBbox: p.bbox,
+                vectorSource: 'raster-color',
+                xPct: Math.round(cx * 100) / 100,
+                yPct: Math.round(cy * 100) / 100,
+                selected: true,
+              };
+            });
+            await ProjectController.saveDetectedLabels(rasterLabels);
+            ProjectController.loadSuggestionsFromLabels(rasterLabels, '', '', '');
+            ProjectController.renderSmartAssistList();
+            ProjectController.renderHotspots();
+            return;
+          }
+        }
         if (summaryEl) {
           summaryEl.innerHTML = 'No PDF site plan found yet. Upload a CAD-exported PDF via <strong>Upload Map</strong> or <strong>Import Folder</strong> to extract exact plot labels &amp; SQM areas.';
         }
@@ -2688,7 +2722,12 @@
         const extracted = await window.SmartAssist.extractPdfLabelsFromBuffer(buf);
         ProjectController._cachedPdfVectors = extracted.vectorGeometry || null;
         await ProjectController.saveDetectedLabels(extracted.labels);
-        ProjectController.loadSuggestionsFromLabels(extracted.labels, extracted.siteAreaText);
+        ProjectController.loadSuggestionsFromLabels(
+          extracted.labels,
+          extracted.siteAreaText,
+          extracted.groundCoverageText,
+          extracted.optionText
+        );
         ProjectController.renderSmartAssistList();
         ProjectController.renderHotspots();
       } catch (err) {
@@ -2702,36 +2741,59 @@
       if (!summaryEl || !listEl) return;
 
       const selectedCount = ProjectController.smartSuggestions.filter((s) => s.selected).length;
-      const areaBanner = ProjectController.smartSiteArea
-        ? `<div><strong>Site Area:</strong> ${App.escapeHtml(ProjectController.smartSiteArea)}</div>`
-        : '';
-      summaryEl.innerHTML = `${areaBanner}<div>Extracted <strong>${ProjectController.smartSuggestions.length}</strong> exact vector label(s) from your PDF. Review &amp; check the ones to place (${selectedCount} selected).</div>`;
+      summaryEl.innerHTML = `
+        <div style="font-weight:700;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:6px;">
+          <span>🎯</span> Master Plan Classified
+        </div>
+        ${ProjectController.smartSiteArea ? `<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:2px;"><strong>Site Area:</strong> ${App.escapeHtml(ProjectController.smartSiteArea)}</div>` : ''}
+        ${ProjectController.smartGroundCoverage ? `<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:2px;"><strong>Ground Coverage:</strong> ${App.escapeHtml(ProjectController.smartGroundCoverage)}</div>` : ''}
+        <div style="margin-top:4px;font-size:11.5px;">
+          Detected <strong>${ProjectController.smartSuggestions.length}</strong> site parcel(s) &amp; zones (${selectedCount} selected).
+        </div>
+      `;
 
       if (ProjectController.smartSuggestions.length === 0) {
-        listEl.innerHTML = '<div class="doc-empty">No embedded text labels found in this PDF (it may be a raster scan). Use <strong>Draw Zone</strong> or <strong>+ Add Asset</strong>.</div>';
+        listEl.innerHTML = '<div class="doc-empty">No site parcels or architectural features detected. Use <strong>Draw Zone</strong> or <strong>+ Add Asset</strong>.</div>';
         return;
       }
 
-      listEl.innerHTML = ProjectController.smartSuggestions
-        .map((s, i) => {
-          const matchCount = s.matchedFiles.length;
-          return `
-            <div class="sa-item" data-sa-idx="${i}">
-              <div class="sa-item-top">
-                <input type="checkbox" data-sa-check="${i}" ${s.selected ? 'checked' : ''}>
-                <span>${App.escapeHtml(s.icon)}</span>
-                <input type="text" class="sa-item-title" data-sa-title="${i}" value="${App.escapeHtml(s.text)}">
+      const groups = [
+        { title: '🏢 Buildings & Warehouses', filter: (s) => s.zone_type === 'building' },
+        { title: '🌳 Landscaping & Green Belts', filter: (s) => s.zone_type === 'landscape' },
+        { title: '⚡ Utilities & Infrastructure', filter: (s) => s.zone_type === 'utility' || s.zone_type === 'civic' },
+        { title: '🛣️ Circulation & Roads', filter: (s) => s.zone_type === 'road' || s.zone_type === 'transit' },
+        { title: '📍 Other Site Zones', filter: (s) => !['building', 'landscape', 'utility', 'civic', 'road', 'transit'].includes(s.zone_type) },
+      ];
+
+      let html = '';
+      for (const grp of groups) {
+        const items = ProjectController.smartSuggestions.filter(grp.filter);
+        if (items.length === 0) continue;
+        html += `<div style="font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted);margin:10px 0 4px 2px;">${grp.title} (${items.length})</div>`;
+        html += items
+          .map((s) => {
+            const i = s.idx;
+            const matchCount = s.matchedFiles ? s.matchedFiles.length : 0;
+            return `
+              <div class="sa-item" data-sa-idx="${i}">
+                <div class="sa-item-top">
+                  <input type="checkbox" data-sa-check="${i}" ${s.selected ? 'checked' : ''}>
+                  <span>${App.escapeHtml(s.icon)}</span>
+                  <input type="text" class="sa-item-title" data-sa-title="${i}" value="${App.escapeHtml(s.text)}">
+                </div>
+                <div class="sa-item-meta">
+                  <span>@ ${s.xPct.toFixed(0)}%, ${s.yPct.toFixed(0)}%</span>
+                  ${s.polygon ? `<span class="file-badge-cat" style="background:var(--accent-soft);color:var(--accent);">${s.vectorSource === 'vector-pdf' ? 'Vector CAD' : (s.vectorSource === 'raster-color' ? 'Color Parcel' : 'Polygon')} (${s.polygon.length} pts)</span>` : '<span class="file-badge-cat">Callout</span>'}
+                  ${s.area ? `<span class="file-badge-cat">${App.escapeHtml(s.area)}</span>` : ''}
+                  ${matchCount > 0 ? `<span class="status-pill status-Approved">${matchCount} file${matchCount > 1 ? 's' : ''}</span>` : ''}
+                </div>
               </div>
-              <div class="sa-item-meta">
-                <span>@ ${s.xPct.toFixed(0)}%, ${s.yPct.toFixed(0)}%</span>
-                ${s.polygon ? `<span class="file-badge-cat">${s.vectorSource === 'vector-pdf' ? 'Vector CAD' : 'Polygon'} (${s.polygon.length} pts)</span>` : '<span class="file-badge-cat">Callout</span>'}
-                ${s.area ? `<span class="file-badge-cat">${App.escapeHtml(s.area)}</span>` : ''}
-                ${matchCount > 0 ? `<span class="status-pill status-Approved">${matchCount} matched file${matchCount > 1 ? 's' : ''}</span>` : ''}
-              </div>
-            </div>
-          `;
-        })
-        .join('');
+            `;
+          })
+          .join('');
+      }
+
+      listEl.innerHTML = html;
 
       listEl.querySelectorAll('[data-sa-check]').forEach((cb) => {
         cb.addEventListener('change', () => {

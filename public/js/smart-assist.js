@@ -8,8 +8,11 @@
 (function () {
   'use strict';
 
-  const NOISE_ONLY_RE = /^[\d.,+\-*/°'"()[\]\s:;%]+$/;
+  const NOISE_ONLY_RE = /^[\d.,+\-*/°'"()[\]\s:;%=]+$/;
   const AREA_RE = /(\d[\d,.]*\s*(?:SQ\.?\s*M|SQM|M2|SQ\.?\s*FT|SQFT|ACRES?|HECTARES?|HA)\b)/i;
+  const NOISE_TERMS_RE = /\b(HIRANANDANI|INDUSTRIAL\s*PARKS|GROUND\s*COVERAGE|TOTAL\s*PLOT\s*AREA|OVERALL\s*SITE\s*AREA|DEVELOPMENT\s*DETAILS|LAND\s*BREAKUP|OPTION\s*[-0-9]+|REVISION|SCALE\s*1\s*:|SHEET\s*\d+|DRAWING\s*NO|AS\s*PER\s*THE\s*PLINE|PATRA|ALL\s*DIMENSIONS|DO\s*NOT\s*SCALE|PARTICULARS|DESCRIPTION|PERCENTAGE|S\.?NO\.?)\b/i;
+  const MATH_EQ_RE = /=|\b\d+[\d,.]*\s*=\s*[\d,.]*%|\b\d+[\d,.]*%\b/i;
+  const STOPWORDS_RE = /^(?:AS|PER|THE|OF|AND|BY|FOR|IN|AT|TO|FROM|WITH|ON|A|AN|IS|ARE|LINE|PLINE|OPTION|REV|NO|GROUND|COVERAGE)$/i;
 
   function classifyLabel(text) {
     const u = text.toUpperCase();
@@ -25,13 +28,19 @@
     if (/\b(ROAD|STREET|AVENUE|HIGHWAY|LANE|DRIVEWAY|ENTRY|EXIT|PATH)\b/.test(u)) {
       return { zone_type: 'road', icon: '🛣️', shape: 'road' };
     }
+    if (/\b(SECURITY|CABIN|GATE|CHECKPOST|GUARD)\b/.test(u)) {
+      return { zone_type: 'utility', icon: '🛡️', shape: 'rect' };
+    }
+    if (/\b(SUB\s*STATION|TRANSFORMER|UG\s*SUMP|PUMP\s*ROOM|ELECTRICAL)\b/.test(u)) {
+      return { zone_type: 'utility', icon: '⚡', shape: 'rect' };
+    }
     if (/\b(TEMPLE|MOSQUE|CHURCH|CHAPEL|SHRINE)\b/.test(u)) {
       return { zone_type: 'civic', icon: '🕌', shape: 'rect' };
     }
-    if (/\b(ADMIN|SCHOOL|HOSPITAL|HOSTEL|CLINIC)\b/.test(u)) {
+    if (/\b(ADMIN|SCHOOL|HOSPITAL|HOSTEL|CLINIC|CANTEEN)\b/.test(u)) {
       return { zone_type: 'building', icon: '🏫', shape: 'rect' };
     }
-    if (/\b(B\d+|BLOCK|TOWER|OFFICE|BUILDING|WING|PHASE|PARKING)\b/.test(u)) {
+    if (/\b(B\d+|BLOCK|TOWER|OFFICE|BUILDING|WING|PHASE|PARKING|WAREHOUSE|SHED|BAY)\b/.test(u)) {
       return { zone_type: 'building', icon: '🏢', shape: 'rect' };
     }
     return { zone_type: 'zone', icon: '🏛️', shape: 'rect' };
@@ -42,6 +51,175 @@
     if (!t || t.length < 2) return true;
     if (AREA_RE.test(t)) return false;
     return NOISE_ONLY_RE.test(t);
+  }
+
+  function isArchitecturalKeyword(text) {
+    const u = String(text || '').toUpperCase();
+    return /\b(BUILDING|BLOCK|TOWER|WAREHOUSE|SHED|BAY|SECURITY|CABIN|GATE|SUB\s*STATION|TRANSFORMER|UG\s*SUMP|PUMP\s*ROOM|STP|WTP|OSR|GREEN\s*BELT|LANDSCAPE|PARKING|ROAD|ENTRY|EXIT|WEIGH\s*BRIDGE|CANTEEN|ADMIN|OFFICE)\b/.test(u);
+  }
+
+  function isMasterplanNoise(text, xPct, yPct, siteRoi) {
+    const t = String(text || '').trim();
+    if (t.length <= 1) return true;
+    if (STOPWORDS_RE.test(t)) return true;
+    if (MATH_EQ_RE.test(t)) return true;
+    if (NOISE_TERMS_RE.test(t)) return true;
+    if (siteRoi && (yPct < siteRoi.minY || yPct > siteRoi.maxY || xPct < siteRoi.minX || xPct > siteRoi.maxX)) {
+      return true;
+    }
+    return false;
+  }
+
+  function parseColorRGB(args) {
+    if (!Array.isArray(args) || args.length === 0) return null;
+    let r = 0, g = 0, b = 0;
+    if (args.length >= 3 && typeof args[0] === 'number') {
+      const div = Math.max(args[0], args[1], args[2]) > 1 ? 255 : 1;
+      r = Math.max(0, Math.min(1, args[0] / div));
+      g = Math.max(0, Math.min(1, args[1] / div));
+      b = Math.max(0, Math.min(1, args[2] / div));
+    } else if (args.length === 1 && typeof args[0] === 'number') {
+      const v = args[0] > 1 ? args[0] / 255 : args[0];
+      r = g = b = Math.max(0, Math.min(1, v));
+    } else if (typeof args[0] === 'string' && /^#[0-9a-f]{6}$/i.test(args[0])) {
+      r = parseInt(args[0].slice(1, 3), 16) / 255;
+      g = parseInt(args[0].slice(3, 5), 16) / 255;
+      b = parseInt(args[0].slice(5, 7), 16) / 255;
+    } else {
+      return null;
+    }
+
+    let category = 'unknown';
+    const maxC = Math.max(r, g, b);
+    const minC = Math.min(r, g, b);
+    const delta = maxC - minC;
+
+    if (delta < 0.08) {
+      if (maxC > 0.88) category = 'white';
+      else if (maxC < 0.2) category = 'black';
+      else category = 'road';
+    } else if (r > 0.72 && g > 0.48 && b < 0.65 && (r - b) > 0.2) {
+      category = 'building';
+    } else if (g > 0.45 && g > r + 0.08 && g > b + 0.08) {
+      category = 'landscape';
+    } else if (b > 0.55 && b > r + 0.15 && b > g + 0.05) {
+      category = 'utility';
+    } else if (r > 0.55 && b > 0.45 && g < 0.4) {
+      category = 'boundary';
+    }
+
+    const hex = '#' + [r, g, b].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join('');
+    return { r, g, b, hex, category };
+  }
+
+  function computeSiteRoi(closedPolys) {
+    if (!Array.isArray(closedPolys) || closedPolys.length === 0) {
+      return { minX: 5, minY: 16, maxX: 95, maxY: 82 };
+    }
+    const siteParcels = closedPolys.filter(p => p.category === 'building' || p.category === 'landscape');
+    if (siteParcels.length === 0) {
+      return { minX: 5, minY: 16, maxX: 95, maxY: 82 };
+    }
+    let minX = 100, minY = 100, maxX = 0, maxY = 0;
+    for (const p of siteParcels) {
+      for (const [x, y] of p.polygon) {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+    return {
+      minX: Math.max(0, Math.round(minX - 8)),
+      minY: Math.max(14, Math.round(minY - 6)),
+      maxX: Math.min(100, Math.round(maxX + 8)),
+      maxY: Math.min(84, Math.round(maxY + 6)),
+    };
+  }
+
+  function clusterBuildingPolys(polys) {
+    const buildingPolys = polys.filter(p => p.category === 'building');
+    const otherPolys = polys.filter(p => p.category !== 'building');
+
+    if (buildingPolys.length <= 1) return polys;
+
+    let clusters = buildingPolys.map(p => {
+      const minX = parseFloat(p.bbox.x);
+      const minY = parseFloat(p.bbox.y);
+      const w = parseFloat(p.bbox.w);
+      const h = parseFloat(p.bbox.h);
+      return {
+        minX,
+        minY,
+        maxX: minX + w,
+        maxY: minY + h,
+        subPolys: [p],
+      };
+    });
+
+    let merged = true;
+    while (merged) {
+      merged = false;
+      const next = [];
+      const used = new Set();
+      for (let i = 0; i < clusters.length; i++) {
+        if (used.has(i)) continue;
+        let curr = { ...clusters[i], subPolys: [...clusters[i].subPolys] };
+        for (let j = i + 1; j < clusters.length; j++) {
+          if (used.has(j)) continue;
+          const other = clusters[j];
+          if (
+            curr.minX <= other.maxX + 1.8 &&
+            curr.maxX >= other.minX - 1.8 &&
+            curr.minY <= other.maxY + 1.8 &&
+            curr.maxY >= other.minY - 1.8
+          ) {
+            curr.minX = Math.min(curr.minX, other.minX);
+            curr.minY = Math.min(curr.minY, other.minY);
+            curr.maxX = Math.max(curr.maxX, other.maxX);
+            curr.maxY = Math.max(curr.maxY, other.maxY);
+            curr.subPolys.push(...other.subPolys);
+            used.add(j);
+            merged = true;
+          }
+        }
+        next.push(curr);
+      }
+      clusters = next;
+    }
+
+    const consolidated = clusters.map(c => {
+      const minX = Math.round(c.minX * 100) / 100;
+      const minY = Math.round(c.minY * 100) / 100;
+      const maxX = Math.round(c.maxX * 100) / 100;
+      const maxY = Math.round(c.maxY * 100) / 100;
+      const w = Math.round((maxX - minX) * 100) / 100;
+      const h = Math.round((maxY - minY) * 100) / 100;
+
+      const poly = [
+        [minX, minY],
+        [maxX, minY],
+        [maxX, maxY],
+        [minX, maxY],
+      ];
+      const totalArea = c.subPolys.reduce((sum, p) => sum + p.area, 0);
+
+      return {
+        polygon: poly,
+        bbox: {
+          x: minX.toFixed(1) + '%',
+          y: minY.toFixed(1) + '%',
+          w: Math.max(2.5, w).toFixed(1) + '%',
+          h: Math.max(2.5, h).toFixed(1) + '%',
+        },
+        area: Math.max(totalArea, w * h * 0.75),
+        solidity: 0.85,
+        category: 'building',
+        source: 'vector-pdf',
+      };
+    });
+
+    return [...consolidated, ...otherPolys];
   }
 
   /* ========================================================================
@@ -334,6 +512,8 @@
       const ctmStack = [];
       let ctm = [1, 0, 0, 1, 0, 0];
       let strokeIsGray = false;
+      let currentFillColor = { r: 0, g: 0, b: 0, hex: '#000000', category: 'unknown' };
+      let currentStrokeColor = { r: 0, g: 0, b: 0, hex: '#000000', category: 'unknown' };
       const closedPolys = [];
       const primarySegs = [];
       const allSegs = [];
@@ -345,7 +525,7 @@
         return [(vx / viewport.width) * 100, (vy / viewport.height) * 100];
       };
 
-      const recordSubpath = (pts, closed, isGray) => {
+      const recordSubpath = (pts, closed, isGray, fillColor = null, isFill = false) => {
         if (!pts || pts.length < 2) return;
         const isClosed =
           closed ||
@@ -377,20 +557,19 @@
               if (simp.length >= 3) clean = simp;
             }
             const info = bboxFromPolyPct(clean);
-            if (
-              !isGray &&
-              area >= 12 &&
-              area <= 4200 &&
-              !(info.wNum > 88 && info.hNum > 88) &&
-              clean.every(([x, y]) => x >= -2 && x <= 102 && y >= -2 && y <= 102)
-            ) {
+            const isColoredParcel = isFill && fillColor && (fillColor.category === 'building' || fillColor.category === 'landscape' || fillColor.category === 'road');
+            const validBounds = !(info.wNum > 88 && info.hNum > 88) && clean.every(([x, y]) => x >= -2 && x <= 102 && y >= -2 && y <= 102);
+
+            if (validBounds && area >= 6 && area <= 4200) {
               const solidity = area / Math.max(0.01, info.wNum * info.hNum);
-              if (solidity >= 0.26) {
+              if (isColoredParcel || (!isGray && solidity >= 0.26)) {
                 closedPolys.push({
                   polygon: clean,
                   bbox: info.bbox,
                   area,
                   solidity,
+                  category: isColoredParcel ? fillColor.category : 'building',
+                  fillColor: isColoredParcel ? fillColor.hex : null,
                   source: 'vector-pdf',
                 });
               }
@@ -417,9 +596,9 @@
         }
       };
 
-      const flushPendingBatch = (forceClose = false) => {
+      const flushPendingBatch = (forceClose = false, isFill = false) => {
         for (const item of pendingBatch) {
-          recordSubpath(item.pts, item.closed || forceClose, item.isGray);
+          recordSubpath(item.pts, item.closed || forceClose, item.isGray, item.fillColor, isFill);
         }
         pendingBatch = [];
       };
@@ -430,7 +609,7 @@
         let cur = [];
         let curClosed = false;
         const pushCur = () => {
-          if (cur.length >= 2) pendingBatch.push({ pts: cur, closed: curClosed, isGray: strokeIsGray });
+          if (cur.length >= 2) pendingBatch.push({ pts: cur, closed: curClosed, isGray: strokeIsGray, fillColor: currentFillColor });
           cur = [];
           curClosed = false;
         };
@@ -470,6 +649,7 @@
                 pts: [toPct(rx, ry), toPct(rx + rw, ry), toPct(rx + rw, ry + rh), toPct(rx, ry + rh)],
                 closed: true,
                 isGray: strokeIsGray,
+                fillColor: currentFillColor,
               });
             }
           }
@@ -486,28 +666,54 @@
         const fn = fnArr[i];
         const args = argsArr[i];
         if (fn === OPS.save) {
-          ctmStack.push({ ctm: ctm.slice(), gray: strokeIsGray });
+          ctmStack.push({
+            ctm: ctm.slice(),
+            gray: strokeIsGray,
+            fillColor: { ...currentFillColor },
+            strokeColor: { ...currentStrokeColor },
+          });
         } else if (fn === OPS.restore) {
           if (ctmStack.length) {
             const st = ctmStack.pop();
             ctm = st.ctm;
             strokeIsGray = st.gray;
+            if (st.fillColor) currentFillColor = st.fillColor;
+            if (st.strokeColor) currentStrokeColor = st.strokeColor;
           }
         } else if (fn === OPS.transform && Array.isArray(args)) {
           ctm = Util.transform(ctm, args);
         } else if (fn === OPS.paintFormXObjectBegin) {
-          ctmStack.push({ ctm: ctm.slice(), gray: strokeIsGray });
+          ctmStack.push({
+            ctm: ctm.slice(),
+            gray: strokeIsGray,
+            fillColor: { ...currentFillColor },
+            strokeColor: { ...currentStrokeColor },
+          });
           if (args && Array.isArray(args[0])) ctm = Util.transform(ctm, args[0]);
         } else if (fn === OPS.paintFormXObjectEnd) {
           if (ctmStack.length) {
             const st = ctmStack.pop();
             ctm = st.ctm;
             strokeIsGray = st.gray;
+            if (st.fillColor) currentFillColor = st.fillColor;
+            if (st.strokeColor) currentStrokeColor = st.strokeColor;
           }
-        } else if (fn === OPS.setStrokeRGBColor || fn === OPS.setStrokeGray || fn === OPS.setFillRGBColor || fn === OPS.setFillGray) {
+        } else if (fn === OPS.setFillRGBColor) {
+          const pc = parseColorRGB(args);
+          if (pc) currentFillColor = pc;
+        } else if (fn === OPS.setFillGray) {
+          const pc = parseColorRGB([args[0], args[0], args[0]]);
+          if (pc) currentFillColor = pc;
+        } else if (fn === OPS.setStrokeRGBColor) {
+          const pc = parseColorRGB(args);
+          if (pc) currentStrokeColor = pc;
+          strokeIsGray = parsePdfGrayHatchFlag(args, strokeIsGray);
+        } else if (fn === OPS.setStrokeGray) {
+          const pc = parseColorRGB([args[0], args[0], args[0]]);
+          if (pc) currentStrokeColor = pc;
           strokeIsGray = parsePdfGrayHatchFlag(args, strokeIsGray);
         } else if (fn === OPS.constructPath && Array.isArray(args) && args.length >= 2) {
-          flushPendingBatch(false);
+          flushPendingBatch(false, false);
           collectOps(args[0], args[1]);
         } else if (fn === OPS.clip || fn === OPS.eoClip || fn === OPS.endPath) {
           // Clipping paths (`W n`) are not painted borders — discard pendingBatch cleanly
@@ -524,22 +730,31 @@
           fn === OPS.closeFillStroke ||
           fn === OPS.closeEOFillStroke
         ) {
-          const closedOp = fn === OPS.closeStroke || fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke;
-          flushPendingBatch(closedOp);
+          const isFill =
+            fn === OPS.fill ||
+            fn === OPS.eoFill ||
+            fn === OPS.fillStroke ||
+            fn === OPS.eoFillStroke ||
+            fn === OPS.closeFillStroke ||
+            fn === OPS.closeEOFillStroke;
+          const closedOp = isFill || fn === OPS.closeStroke || fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke;
+          flushPendingBatch(closedOp, isFill);
           if (standaloneCur.length >= 2) {
-            recordSubpath(standaloneCur, standaloneClosed || closedOp, strokeIsGray);
+            recordSubpath(standaloneCur, standaloneClosed || closedOp, strokeIsGray, currentFillColor, isFill);
           }
           standaloneCur = [];
           standaloneClosed = false;
         } else if (fn === OPS.moveTo && Array.isArray(args) && args.length >= 2) {
-          if (standaloneCur.length >= 2) pendingBatch.push({ pts: standaloneCur, closed: standaloneClosed, isGray: strokeIsGray });
+          if (standaloneCur.length >= 2)
+            pendingBatch.push({ pts: standaloneCur, closed: standaloneClosed, isGray: strokeIsGray, fillColor: currentFillColor });
           standaloneCur = [toPct(args[0], args[1])];
           standaloneClosed = false;
         } else if (fn === OPS.lineTo && Array.isArray(args) && args.length >= 2) {
           standaloneCur.push(toPct(args[0], args[1]));
         } else if (fn === OPS.closePath) {
           standaloneClosed = true;
-          if (standaloneCur.length >= 2) pendingBatch.push({ pts: standaloneCur, closed: true, isGray: strokeIsGray });
+          if (standaloneCur.length >= 2)
+            pendingBatch.push({ pts: standaloneCur, closed: true, isGray: strokeIsGray, fillColor: currentFillColor });
           standaloneCur = [];
           standaloneClosed = false;
         } else if (fn === OPS.rectangle && Array.isArray(args) && args.length >= 4) {
@@ -549,19 +764,22 @@
               pts: [toPct(rx, ry), toPct(rx + rw, ry), toPct(rx + rw, ry + rh), toPct(rx, ry + rh)],
               closed: true,
               isGray: strokeIsGray,
+              fillColor: currentFillColor,
             });
           }
         }
       }
-      flushPendingBatch(false);
-      if (standaloneCur.length >= 2) recordSubpath(standaloneCur, standaloneClosed, strokeIsGray);
+      flushPendingBatch(false, false);
+      if (standaloneCur.length >= 2) recordSubpath(standaloneCur, standaloneClosed, strokeIsGray, currentFillColor, false);
 
-      closedPolys.sort((a, b) => a.area - b.area);
+      const clusteredPolys = clusterBuildingPolys(closedPolys);
+      clusteredPolys.sort((a, b) => a.area - b.area);
       const chosenSegs = primarySegs.length >= 6 ? primarySegs : allSegs;
       const findFaceAt = buildPlanarFaceFinder(chosenSegs);
-      return { closedPolys, segmentCount: chosenSegs.length, findFaceAt };
+      const siteRoi = computeSiteRoi(clusteredPolys);
+      return { closedPolys: clusteredPolys, siteRoi, segmentCount: chosenSegs.length, findFaceAt };
     } catch {
-      return { closedPolys: [], findFaceAt: null };
+      return { closedPolys: [], siteRoi: { minX: 5, minY: 16, maxX: 95, maxY: 82 }, findFaceAt: null };
     }
   }
 
@@ -628,29 +846,39 @@
       }
     }
 
+    // 1. Extract Sheet Metadata (Site Area, Ground Coverage, Option)
     let siteAreaText = '';
-    let siteAreaAnchor = null;
-    const labels = [];
-    const areaTokens = [];
+    let groundCoverageText = '';
+    let optionText = '';
 
     for (const line of lines) {
       const t = line.text.trim();
       if (/OVERALL\s*SITE\s*AREA|TOTAL\s*SITE\s*AREA/i.test(t)) {
         siteAreaText = t;
-        siteAreaAnchor = { xPct: line.xPct, yPct: line.yPct };
-        continue;
+      } else if (!siteAreaText && /\[AREA\s*=\s*.*?\]/i.test(t)) {
+        siteAreaText = t.replace(/[\[\]]/g, '').trim();
+      } else if (!siteAreaText && /AREA\s*=\s*\d+[\d,.]*\s*ACRES?/i.test(t)) {
+        siteAreaText = t;
       }
-      if (
-        siteAreaAnchor &&
-        Math.abs(line.xPct - siteAreaAnchor.xPct) <= 8 &&
-        line.yPct - siteAreaAnchor.yPct >= 0 &&
-        line.yPct - siteAreaAnchor.yPct <= 4.5 &&
-        AREA_RE.test(t)
-      ) {
-        siteAreaText = `${siteAreaText} ${t}`.replace(/\s+/g, ' ').trim();
-        continue;
+      if (/GROUND\s*COVERAGE.*?=\s*[\d,.]*%/i.test(t) || /\b\d+[\d,.]*\s*=\s*[\d,.]*%/i.test(t)) {
+        if (!groundCoverageText) groundCoverageText = t;
       }
+      if (/OPTION\s*[-0-9]+/i.test(t) || /MASTER\s*PLAN\s*OPTION/i.test(t)) {
+        if (!optionText) optionText = t;
+      }
+    }
+
+    // 2. Compute Site Plan ROI
+    const siteRoi = vectorGeometry.siteRoi || computeSiteRoi(vectorGeometry.closedPolys);
+
+    // 3. Filter valid candidate text within the site
+    const candidateLines = [];
+    const areaTokens = [];
+
+    for (const line of lines) {
+      const t = line.text.trim();
       if (isDimensionNumber(t)) continue;
+      if (isMasterplanNoise(t, line.xPct, line.yPct, siteRoi)) continue;
 
       const areaMatch = t.match(AREA_RE);
       if (areaMatch && t.replace(AREA_RE, '').trim().length < 2) {
@@ -658,31 +886,27 @@
         continue;
       }
 
-      const cls = classifyLabel(t);
-      const centerX = (line.xPct + line.maxX) / 2;
-      labels.push({
+      candidateLines.push({
         text: t,
         area: areaMatch ? areaMatch[1].trim() : '',
-        zone_type: cls.zone_type,
-        icon: cls.icon,
-        shape: cls.shape,
-        xPct: Math.round(centerX * 100) / 100,
-        yPct: Math.round(line.yPct * 100) / 100,
+        xPct: (line.xPct + line.maxX) / 2,
+        yPct: line.yPct,
+        claimed: false,
       });
     }
 
     for (const tok of areaTokens) {
       let best = null;
       let bestDist = Infinity;
-      for (const lbl of labels) {
-        if (lbl.area) continue;
-        const dx = Math.abs(lbl.xPct - tok.xPct);
-        const dy = tok.yPct - lbl.yPct;
+      for (const cand of candidateLines) {
+        if (cand.area) continue;
+        const dx = Math.abs(cand.xPct - tok.xPct);
+        const dy = tok.yPct - cand.yPct;
         if (dx <= 5.5 && dy >= -1.5 && dy <= 4.5) {
           const d = dx + Math.abs(dy);
           if (d < bestDist) {
             bestDist = d;
-            best = lbl;
+            best = cand;
           }
         }
       }
@@ -693,30 +917,83 @@
       }
     }
 
-    const deduped = [];
-    for (const lbl of labels) {
-      const canVecTrace = lbl.zone_type !== 'road' && !(lbl.zone_type === 'transit' && /BRIDGE/i.test(lbl.text));
-      if (canVecTrace && vectorGeometry) {
-        const vecMatch = findVectorPolygonAt(vectorGeometry, lbl.xPct, lbl.yPct);
-        if (vecMatch) {
-          lbl.vectorPolygon = vecMatch.polygon;
-          lbl.vectorBbox = vecMatch.bbox;
-          lbl.vectorSource = vecMatch.source || 'vector-pdf';
+    // 4. Parcel-First Synthesis: match candidate lines into closed building & landscape parcels
+    const labels = [];
+    let bldgCounter = 1;
+
+    const siteParcels = (vectorGeometry.closedPolys || []).filter((p) => {
+      const cx = parseFloat(p.bbox.x) + parseFloat(p.bbox.w) / 2;
+      const cy = parseFloat(p.bbox.y) + parseFloat(p.bbox.h) / 2;
+      return cx >= siteRoi.minX - 5 && cx <= siteRoi.maxX + 5 && cy >= siteRoi.minY - 5 && cy <= siteRoi.maxY + 5;
+    });
+
+    for (const parcel of siteParcels) {
+      const inside = candidateLines.filter((c) => !c.claimed && pointInPolygon(c.xPct, c.yPct, parcel.polygon));
+      let title = '';
+      let area = '';
+
+      if (inside.length > 0) {
+        inside.forEach((c) => {
+          c.claimed = true;
+        });
+        const named = inside.find((c) => /\b(BUILDING|BLOCK|WAREHOUSE|SHED|BAY|FACILITY)\b/i.test(c.text)) || inside[0];
+        title = named.text;
+        area = named.area || (inside.find((c) => c.area)?.area || '');
+      } else {
+        if (parcel.category === 'building') {
+          title = `Building 0${bldgCounter++}`;
+        } else if (parcel.category === 'landscape') {
+          title = 'OSR / Green Belt';
+        } else if (parcel.category === 'road') {
+          continue;
+        } else {
+          continue;
         }
       }
-      const isRoad = lbl.zone_type === 'road' || lbl.zone_type === 'transit';
-      const maxDist = isRoad ? 28 : 5;
-      const dup = deduped.find(
-        (x) =>
-          x.text.toLowerCase() === lbl.text.toLowerCase() &&
-          Math.hypot(x.xPct - lbl.xPct, x.yPct - lbl.yPct) < maxDist
-      );
-      if (!dup) deduped.push(lbl);
+
+      const cls = classifyLabel(title);
+      const cx = Math.round((parseFloat(parcel.bbox.x) + parseFloat(parcel.bbox.w) / 2) * 100) / 100;
+      const cy = Math.round((parseFloat(parcel.bbox.y) + parseFloat(parcel.bbox.h) / 2) * 100) / 100;
+
+      labels.push({
+        text: title,
+        area,
+        zone_type: parcel.category === 'building' ? 'building' : (parcel.category === 'landscape' ? 'landscape' : cls.zone_type),
+        icon: parcel.category === 'landscape' ? '🌳' : cls.icon,
+        shape: 'polygon',
+        polygon: parcel.polygon,
+        vectorPolygon: parcel.polygon,
+        vectorBbox: parcel.bbox,
+        vectorSource: parcel.source || 'vector-pdf',
+        xPct: cx,
+        yPct: cy,
+        selected: true,
+      });
+    }
+
+    // 5. Add remaining unclaimed candidate lines ONLY if they match architectural keywords (Roads, Gates, Utilities)
+    for (const cand of candidateLines) {
+      if (cand.claimed) continue;
+      if (!isArchitecturalKeyword(cand.text)) continue;
+
+      const cls = classifyLabel(cand.text);
+      labels.push({
+        text: cand.text,
+        area: cand.area,
+        zone_type: cls.zone_type,
+        icon: cls.icon,
+        shape: cls.shape,
+        xPct: Math.round(cand.xPct * 100) / 100,
+        yPct: Math.round(cand.yPct * 100) / 100,
+        selected: true,
+      });
     }
 
     return {
       siteAreaText,
-      labels: deduped.slice(0, 80),
+      groundCoverageText,
+      optionText,
+      labels: labels.slice(0, 30),
       vectorGeometry,
     };
   }
@@ -918,8 +1195,126 @@
     return matched;
   }
 
+  function extractRasterColorParcels(imgEl, maxDim = 1024) {
+    if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) return [];
+    try {
+      const scale = Math.min(1, maxDim / Math.max(imgEl.naturalWidth, imgEl.naturalHeight));
+      const w = Math.max(64, Math.round(imgEl.naturalWidth * scale));
+      const h = Math.max(64, Math.round(imgEl.naturalHeight * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return [];
+      ctx.drawImage(imgEl, 0, 0, w, h);
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+
+      const step = 4;
+      const gridW = Math.floor(w / step);
+      const gridH = Math.floor(h / step);
+      const yellowGrid = new Uint8Array(gridW * gridH);
+      const greenGrid = new Uint8Array(gridW * gridH);
+
+      const startY = Math.floor(gridH * 0.16);
+      const endY = Math.floor(gridH * 0.82);
+
+      for (let gy = startY; gy < endY; gy++) {
+        for (let gx = 0; gx < gridW; gx++) {
+          const px = gx * step;
+          const py = gy * step;
+          const idx = (py * w + px) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          // Yellow / Amber building
+          if (r > 175 && g > 150 && b < 130 && (r - b) > 35) {
+            yellowGrid[gy * gridW + gx] = 1;
+          }
+          // Green landscape
+          else if (g > 120 && g > r + 25 && g > b + 25) {
+            greenGrid[gy * gridW + gx] = 1;
+          }
+        }
+      }
+
+      const clusterParcels = (grid, category) => {
+        const visited = new Uint8Array(grid.length);
+        const parcels = [];
+        for (let gy = startY; gy < endY; gy++) {
+          for (let gx = 0; gx < gridW; gx++) {
+            const idx = gy * gridW + gx;
+            if (!grid[idx] || visited[idx]) continue;
+            let q = [[gx, gy]];
+            visited[idx] = 1;
+            let minGx = gx, maxGx = gx, minGy = gy, maxGy = gy;
+            let count = 0;
+            while (q.length > 0) {
+              const [cx, cy] = q.pop();
+              count++;
+              if (cx < minGx) minGx = cx;
+              if (cx > maxGx) maxGx = cx;
+              if (cy < minGy) minGy = cy;
+              if (cy > maxGy) maxGy = cy;
+              const nbs = [
+                [cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1],
+                [cx + 1, cy + 1], [cx - 1, cy - 1], [cx + 1, cy - 1], [cx - 1, cy + 1]
+              ];
+              for (const [nx, ny] of nbs) {
+                if (nx >= 0 && nx < gridW && ny >= startY && ny < endY) {
+                  const nIdx = ny * gridW + nx;
+                  if (grid[nIdx] && !visited[nIdx]) {
+                    visited[nIdx] = 1;
+                    q.push([nx, ny]);
+                  }
+                }
+              }
+            }
+            if (count >= 16) {
+              const x1Pct = Math.round((minGx * step / w) * 10000) / 100;
+              const y1Pct = Math.round((minGy * step / h) * 10000) / 100;
+              const x2Pct = Math.round(((maxGx + 1) * step / w) * 10000) / 100;
+              const y2Pct = Math.round(((maxGy + 1) * step / h) * 10000) / 100;
+              const wPct = Math.round((x2Pct - x1Pct) * 100) / 100;
+              const hPct = Math.round((y2Pct - y1Pct) * 100) / 100;
+              const area = wPct * hPct;
+              if (area >= 8 && area <= 3500) {
+                const poly = [
+                  [x1Pct, y1Pct],
+                  [x2Pct, y1Pct],
+                  [x2Pct, y2Pct],
+                  [x1Pct, y2Pct],
+                ];
+                parcels.push({
+                  polygon: poly,
+                  bbox: {
+                    x: x1Pct.toFixed(1) + '%',
+                    y: y1Pct.toFixed(1) + '%',
+                    w: Math.max(2.5, wPct).toFixed(1) + '%',
+                    h: Math.max(2.5, hPct).toFixed(1) + '%',
+                  },
+                  area,
+                  category,
+                  source: 'raster-color',
+                });
+              }
+            }
+          }
+        }
+        return parcels;
+      };
+
+      const yellowParcels = clusterParcels(yellowGrid, 'building');
+      const greenParcels = clusterParcels(greenGrid, 'landscape');
+      return [...yellowParcels, ...greenParcels];
+    } catch {
+      return [];
+    }
+  }
+
   window.SmartAssist = {
     extractPdfLabelsFromBuffer,
+    extractRasterColorParcels,
     findVectorPolygonAt,
     maskToPctResult,
     matchFilesToLabel,
