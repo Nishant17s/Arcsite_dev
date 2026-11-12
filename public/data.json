@@ -1,0 +1,177 @@
+{
+  "assets": [
+    {
+      "id": "b1-office",
+      "title": "B1 - Office (210.8 SQM)",
+      "x": "52%",
+      "y": "20%",
+      "w": "14%",
+      "h": "12%",
+      "shape": "rect",
+      "icon": "🏢",
+      "categories": {
+        "Architecture": [
+          { "label": "Floor Plan - B1", "href": "docs/b1-office/architecture-floor-plan.html" },
+          { "label": "Elevation - B1", "href": "docs/b1-office/architecture-elevation.html" },
+          { "label": "Section - B1", "href": "docs/b1-office/architecture-section.html" }
+        ],
+        "Structural": [
+          { "label": "Foundation Plan - B1", "href": "docs/b1-office/structural-foundation.html" },
+          { "label": "Column Layout - B1", "href": "docs/b1-office/structural-columns.html" },
+          { "label": "Beam Details - B1", "href": "docs/b1-office/structural-beams.html" }
+        ],
+        "MEP": [
+          { "label": "Plumbing Layout - B1", "href": "docs/b1-office/mep-plumbing.html" },
+          { "label": "Electrical Plan - B1", "href": "docs/b1-office/mep-electrical.html" },
+          { "label": "HVAC System - B1", "href": "docs/b1-office/mep-hvac.html" }
+        ]
+      }
+    },
+    {
+      "id": "b2-office",
+      "title": "B2 - Office (6745.2M)",
+      "x": "28%",
+      "y": "38%",
+      "w": "22%",
+      "h": "28%",
+      "shape": "rect",
+      "icon": "🏛️",
+      "categories": {
+        "Architecture": [
+          { "label": "Floor Plan - B2", "href": "docs/b2-office/architecture-floor-plan.html" },
+          { "label": "Elevation - B2", "href": "docs/b2-office/architecture-elevation.html" },
+          { "label": "Roof Plan - B2", "href": "docs/b2-office/architecture-roof.html" }
+        ],
+        "Structural": [
+          { "label": "Foundation Plan - B2", "href": "docs/b2-office/structural-foundation.html" },
+          { "label": "Structural Analysis - B2", "href": "docs/b2-office/structural-analysis.html" },
+          { "label": "Reinforcement Details - B2", "href": "docs/b2-office/structural-reinforcement.html" }
+        ],
+        "MEP": [
+          { "label": "Plumbing Riser - B2", "href": "docs/b2-office/mep-plumbing.html" },
+          { "label": "Power Distribution - B2", "href": "docs/b2-office/mep-electrical.html" },
+          { "label": "Fire Protection - B2", "href": "docs/b2-office/mep-fire.html" }
+        ]
+      }
+    },
+    {
+      "id": "sewage-stp",
+      "title": "Sewage (1100 SQM)",
+      "x": "35%",
+      "y": "50%",
+      "w": "12%",
+      "h": "16%",
+      "shape": "circle",
+      "icon": "💧",
+      "categories": {
+        "Architecture": [
+          { "label": "Site Layout - STP", "href": "docs/sewage-stp/architecture-layout.html" },
+          { "label": "Access Details - STP", "href": "docs/sewage-stp/architecture-access.html" }
+        ],
+        "Structural": [
+          { "label": "Tank Structure - STP", "href": "docs/sewage-stp/structural-tank.html" },
+          { "label": "Foundation - STP", "href": "docs/sewage-stp/structural-foundation.html" }
+        ],
+        "MEP": [
+          { "label": "Process Flow Diagram", "href": "docs/sewage-stp/mep-process.html" },
+          { "label": "Pumping System", "href": "docs/sewage-stp/mep-pumps.html" },
+          { "label": "Treatment Equipment", "href": "docs/sewage-stp/mep-equipment.html" }
+        ]
+      }
+    },
+    {
+      "id": "temple",
+      "title": "Temple (1247.5M)",
+      "x": "40%",
+      "y": "28%",
+      "w": "10%",
+      "h": "10%",
+      "shape": "circle",
+      "icon": "🕌",
+      "categories": {
+        "Architecture": [
+          { "label": "Floor Plan - Temple", "href": "docs/temple/architecture-floor-plan.html" },
+          { "label": "Facade Details - Temple", "href": "docs/temple/architecture-facade.html" },
+          { "label": "Landscape - Temple", "href": "docs/temple/architecture-landscape.html" }
+        ],
+        "Structural": [
+          { "label": "Foundation Plan - Temple", "href": "docs/temple/structural-foundation.html" },
+          { "label": "Dome Structure - Temple", "href": "docs/temple/structural-dome.html" }
+        ],
+        "MEP": [
+          { "label": "Lighting Plan - Temple", "href": "docs/temple/mep-lighting.html" },
+          { "label": "Plumbing - Temple", "href": "docs/temple/mep-plumbing.html" }
+        ]
+      }
+    },
+    {
+      "id": "admin-block",
+      "title": "Admin Block",
+      "x": "65%",
+      "y": "8%",
+      "w": "18%",
+      "h": "10%",
+      "shape": "rect",
+      "icon": "🏫",
+      "categories": {
+        "Architecture": [
+          { "label": "Floor Plan - Admin", "href": "docs/admin-block/architecture-floor-plan.html" },
+          { "label": "Interior Layout - Admin", "href": "docs/admin-block/architecture-interior.html" }
+        ],
+        "Structural": [
+          { "label": "Structural Plan - Admin", "href": "docs/admin-block/structural-plan.html" }
+        ],
+        "MEP": [
+          { "label": "Electrical Layout - Admin", "href": "docs/admin-block/mep-electrical.html" },
+          { "label": "Data & Telecom - Admin", "href": "docs/admin-block/mep-data.html" }
+        ]
+      }
+    },
+    {
+      "id": "metro-bridge",
+      "title": "Metro Bridge",
+      "x": "8%",
+      "y": "22%",
+      "w": "24%",
+      "h": "6%",
+      "shape": "bridge",
+      "icon": "🌉",
+      "categories": {
+        "Architecture": [
+          { "label": "Bridge Alignment", "href": "docs/metro-bridge/architecture-alignment.html" }
+        ],
+        "Structural": [
+          { "label": "Bridge Structure", "href": "docs/metro-bridge/structural-bridge.html" },
+          { "label": "Pier Details", "href": "docs/metro-bridge/structural-piers.html" }
+        ],
+        "MEP": [
+          { "label": "Utilities Crossing", "href": "docs/metro-bridge/mep-utilities.html" }
+        ]
+      }
+    },
+    {
+      "id": "hilly-road",
+      "title": "Hilly Road",
+      "x": "48%",
+      "y": "15%",
+      "w": "18%",
+      "h": "4%",
+      "shape": "road",
+      "icon": "🛣️",
+      "categories": {
+        "Architecture": [
+          { "label": "Road Alignment", "href": "docs/hilly-road/architecture-alignment.html" },
+          { "label": "Cross Section", "href": "docs/hilly-road/architecture-section.html" }
+        ],
+        "Structural": [
+          { "label": "Pavement Design", "href": "docs/hilly-road/structural-pavement.html" },
+          { "label": "Retaining Walls", "href": "docs/hilly-road/structural-walls.html" }
+        ],
+        "MEP": [
+          { "label": "Street Lighting", "href": "docs/hilly-road/mep-lighting.html" },
+          { "label": "Drainage System", "href": "docs/hilly-road/mep-drainage.html" }
+        ]
+      }
+    }
+  ]
+}

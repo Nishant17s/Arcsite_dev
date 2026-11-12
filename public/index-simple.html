@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArcSite - Interactive Site Navigator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">ArcSite</div>
+      <div class="header-right">
+        <label for="map-upload" class="btn">Upload Map</label>
+        <input type="file" id="map-upload" accept="image/*" style="display:none;">
+        <button class="btn" id="toggle-edit">Edit Mode</button>
+        <button class="btn" id="export-json">Export</button>
+      </div>
+    </div>
+    
+    <div class="main">
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <h2>Buildings</h2>
+          <div class="search-box">
+            <input type="text" id="search" placeholder="Search buildings...">
+          </div>
+        </div>
+        <div class="asset-list" id="asset-list" role="list"></div>
+      </div>
+      
+      <div class="map-workspace">
+        <div class="map-container">
+          <img id="site-map" src="assets/site-map.svg" alt="Site Map">
+          <div id="hotspot-layer"></div>
+        </div>
+        
+        <div id="popup" class="popup hidden"></div>
+        
+        <div id="editor-panel" class="editor-panel hidden">
+          <h3>Editor</h3>
+          <h4 id="ed-title">Asset</h4>
+          <div>
+            <div class="form-group">
+              <label>X Position</label>
+              <input type="text" id="ed-x" placeholder="e.g. 10%">
+            </div>
+            <div class="form-group">
+              <label>Y Position</label>
+              <input type="text" id="ed-y" placeholder="e.g. 20%">
+            </div>
+            <div class="form-group">
+              <label>Width</label>
+              <input type="text" id="ed-w" placeholder="e.g. 15%">
+            </div>
+            <div class="form-group">
+              <label>Height</label>
+              <input type="text" id="ed-h" placeholder="e.g. 10%">
+            </div>
+            
+            <div class="nudge-controls">
+              <button id="ed-nudge-up">↑</button>
+              <button id="ed-nudge-left">←</button>
+              <button id="ed-nudge-right">→</button>
+              <button id="ed-nudge-down">↓</button>
+            </div>
+            
+            <button class="btn btn-primary" id="ed-save">Save Changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid meet">
+  <rect width="100%" height="100%" fill="#eef2f5" />
+  <!-- Roads -->
+  <rect x="0" y="360" width="1200" height="80" fill="#cfd8dc" />
+  <!-- Buildings -->
+  <g id="buildings">
+    <rect x="110" y="90" width="180" height="220" rx="8" ry="8" fill="#ffffff" stroke="#90a4ae" />
+    <text x="200" y="220" font-family="Segoe UI, Arial" font-size="18" fill="#333" text-anchor="middle">Building A</text>
+
+    <rect x="580" y="220" width="200" height="260" rx="8" ry="8" fill="#ffffff" stroke="#90a4ae" />
+    <text x="680" y="360" font-family="Segoe UI, Arial" font-size="18" fill="#333" text-anchor="middle">Building B</text>
+  </g>
+
+  <!-- Utilities / legend -->
+  <g transform="translate(980,20)" font-family="Segoe UI, Arial" font-size="13">
+    <rect width="200" height="120" rx="8" fill="#fff" stroke="#ddd"/>
+    <text x="12" y="28" fill="#222">Site Legend</text>
+    <text x="12" y="52" fill="#555">• Building A (left)</text>
+    <text x="12" y="72" fill="#555">• Building B (right)</text>
+  </g>
+</svg>

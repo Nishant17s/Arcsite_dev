@@ -1,0 +1,1 @@
+These are simple HTML placeholders to simulate document links for the demo. Replace with real PDFs or static files as needed.

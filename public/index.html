@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ArcSite Navigator - Home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--accent:#0a66c2;--bg:#fafbfc;--text:#1f2937}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .container{max-width:600px;width:100%;padding:40px;text-align:center}
+    h1{font-size:2.5rem;margin-bottom:16px;background:linear-gradient(135deg,var(--accent),#1e40af);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    p{margin-bottom:32px;color:#6b7280}
+    .btn{display:inline-block;background:linear-gradient(135deg,var(--accent),#1e40af);color:#fff;padding:14px 32px;border-radius:12px;text-decoration:none;font-weight:600;border:none;cursor:pointer;font-size:16px;box-shadow:0 10px 25px rgba(10,102,194,0.2);transition:all 200ms}
+    .btn:hover{transform:translateY(-2px);box-shadow:0 15px 30px rgba(10,102,194,0.3)}
+    .projects-list{margin-top:48px;text-align:left}
+    .project-item{background:#fff;padding:20px;border-radius:12px;margin-bottom:12px;border:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
+    .project-item h3{font-size:16px;margin-bottom:4px}
+    .project-item small{color:#6b7280}
+    .project-link{background:#f3f4f6;color:var(--accent);padding:8px 16px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600}
+    .project-link:hover{background:#e5e7eb}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏗️ ArcSite Navigator</h1>
+    <p>Create and manage interactive site plans for your architecture projects</p>
+    
+    <button class="btn" onclick="createNewProject()">+ Create New Project</button>
+    
+    <div class="projects-list" id="projects-list"></div>
+  </div>
+
+  <script>
+    async function createNewProject() {
+      const projectName = prompt('Enter project name:', 'Riverside Development');
+      if (!projectName) return;
+      
+      try {
+        const res = await fetch('/api/projects/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectName })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          // Save to recent projects
+          const recent = JSON.parse(localStorage.getItem('recentProjects') || '[]');
+          recent.unshift({
+            id: data.projectId,
+            name: projectName,
+            createdAt: new Date().toISOString()
+          });
+          localStorage.setItem('recentProjects', JSON.stringify(recent.slice(0, 10)));
+          
+          window.location.href = data.url;
+        }
+      } catch (error) {
+        alert('Error creating project: ' + error.message);
+      }
+    }
+
+    // Load recent projects from localStorage
+    function loadRecentProjects() {
+      const recent = JSON.parse(localStorage.getItem('recentProjects') || '[]');
+      const list = document.getElementById('projects-list');
+      
+      if (recent.length === 0) {
+        list.innerHTML = '<p style="color:#6b7280;text-align:center;margin-top:20px">No recent projects</p>';
+        return;
+      }
+      
+      list.innerHTML = '<h2 style="margin-bottom:16px;font-size:18px">Recent Projects</h2>' +
+        recent.map(p => `
+          <div class="project-item">
+            <div>
+              <h3>${p.name}</h3>
+              <small>${new Date(p.createdAt).toLocaleDateString()}</small>
+            </div>
+            <a href="/project/${p.id}" class="project-link">Open →</a>
+          </div>
+        `).join('');
+    }
+    
+    loadRecentProjects();
+  </script>
+</body>
+</html>
+  <header class="app-header">
+    <div class="brand">
+      <div class="logo">A</div>
+      <div class="title">ArcSite — Project Navigator</div>
+    </div>
+    <div class="header-actions">
+      <div class="project-name">Project: Riverside Development</div>
+      <button class="btn primary">New Asset</button>
+      <!-- map upload control -->
+      <input id="map-upload" type="file" accept="image/*" style="display:none" />
+      <label for="map-upload" class="btn" title="Upload a site map image">Upload Map</label>
+      <div class="user">JS</div>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Assets</h2>
+        <input id="search" type="search" placeholder="Search assets" aria-label="Search assets" />
+      </div>
+
+      <div id="asset-list" class="asset-list" role="list"></div>
+
+      <div class="sidebar-footer">
+        <small>Data-driven hotspots • Edit <code>data.json</code></small>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <section class="map-panel">
+        <div class="map-toolbar">
+          <div class="map-legend">Site Map</div>
+          <div class="map-controls">
+            <button id="toggle-edit" class="btn">Edit Mode</button>
+            <button id="export-json" class="btn">Export JSON</button>
+            <button class="btn">Zoom in</button>
+            <button class="btn">Zoom out</button>
+          </div>
+        </div>
+
+        <div id="map-container">
+          <!-- The site map SVG (scales responsively). Hotspots will be positioned with absolute coordinates over this container. -->
+          <img id="site-map" src="assets/site-map.svg" alt="Site Map" />
+
+          <!-- Hotspots are inserted here by app.js -->
+          <div id="hotspot-layer" aria-hidden="false"></div>
+
+          <!-- Reusable popup -->
+          <div id="popup" class="hidden" role="dialog" aria-live="polite"></div>
+        </div>
+
+        <!-- Simple inline editor shown when Edit Mode is active -->
+        <div id="editor-panel" class="editor-panel hidden" aria-hidden="true">
+          <h4>Asset editor</h4>
+          <div id="editor-content">
+            <div class="editor-row"><label>Title:</label><span id="ed-title"></span></div>
+            <div class="editor-row"><label>X:</label><input id="ed-x" type="text" /></div>
+            <div class="editor-row"><label>Y:</label><input id="ed-y" type="text" /></div>
+            <div class="editor-row"><label>W:</label><input id="ed-w" type="text" /></div>
+            <div class="editor-row"><label>H:</label><input id="ed-h" type="text" /></div>
+            <div class="editor-actions">
+              <button id="ed-save" class="btn primary">Save</button>
+              <button id="ed-nudge-left" class="btn">◀</button>
+              <button id="ed-nudge-right" class="btn">▶</button>
+              <button id="ed-nudge-up" class="btn">▲</button>
+              <button id="ed-nudge-down" class="btn">▼</button>
+            </div>
+          </div>
+        </div>
+
+        <p class="hint">Hover or click a building to view its documents.</p>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
