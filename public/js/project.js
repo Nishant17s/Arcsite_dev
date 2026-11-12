@@ -3200,38 +3200,6 @@
       const sitePdf = ProjectController.getSitePlanPdfFile();
 
       if (!sitePdf) {
-        const mapImg = document.getElementById('map-image');
-        if (mapImg && mapImg.naturalWidth && window.SmartAssist?.extractRasterColorParcels) {
-          if (summaryEl) summaryEl.textContent = 'Scanning master plan image colors…';
-          const rasterParcels = window.SmartAssist.extractRasterColorParcels(mapImg);
-          if (rasterParcels.length > 0) {
-            let bldgCount = 1;
-            const rasterLabels = rasterParcels.map((p) => {
-              const cx = parseFloat(p.bbox.x) + parseFloat(p.bbox.w) / 2;
-              const cy = parseFloat(p.bbox.y) + parseFloat(p.bbox.h) / 2;
-              const isBldg = p.category === 'building';
-              return {
-                text: isBldg ? `Building 0${bldgCount++}` : 'OSR / Green Belt',
-                area: '',
-                zone_type: isBldg ? 'building' : 'landscape',
-                icon: isBldg ? 'BLDG' : 'LAND',
-                shape: 'polygon',
-                polygon: p.polygon,
-                vectorPolygon: p.polygon,
-                vectorBbox: p.bbox,
-                vectorSource: 'raster-color',
-                xPct: Math.round(cx * 100) / 100,
-                yPct: Math.round(cy * 100) / 100,
-                selected: true,
-              };
-            });
-            await ProjectController.saveDetectedLabels(rasterLabels);
-            ProjectController.loadSuggestionsFromLabels(rasterLabels, '', '', '');
-            ProjectController.renderSmartAssistList();
-            ProjectController.renderHotspots();
-            return;
-          }
-        }
         if (summaryEl) {
           summaryEl.innerHTML = 'No PDF site plan found yet. Upload a CAD-exported PDF via <strong>Upload Map</strong> or <strong>Import Folder</strong> to extract exact plot labels &amp; SQM areas.';
         }

@@ -14,6 +14,8 @@
   const ROAD_DIM_RE = /\b(?:\d+(\.\d+)?\s*M(?:TR)?\s*(?:WIDE)?\s*ROAD|\d+(\.\d+)?\s*M(?:TR)?\s*WIDE|WIDE\s*ROAD|INTERNAL\s*ROAD|ROAD\s*WIDTH|\d+\.?\d*\s*M\s*WIDE)\b/i;
   const MATH_EQ_RE = /=|\b\d+[\d,.]*\s*=\s*[\d,.]*%|\b\d+[\d,.]*%\b/i;
   const STOPWORDS_RE = /^(?:AS|PER|THE|OF|AND|BY|FOR|IN|AT|TO|FROM|WITH|ON|A|AN|IS|ARE|LINE|PLINE|PATRA|OPTION|REV|REVISION|NO|GROUND|COVERAGE|SQMT|SQM|SQFT|ACRE|ACRES|PERCENT|POR|DETAILS)$/i;
+  const SUBPART_NOISE_RE = /^(?:DOCK|CANOPY|RAMP|SHUTTER|FIRE\s*ESCAPE|CUTOUT|COLUMN|GRID|BEAM|SLAB|STAIRCASE|LIFT|ELEVATOR|RESTROOM|TOILET|DRIVERS\s*RESTROOM(?:\s*-\s*\d+)?)$/i;
+  const AREA_TABLE_RE = /\b(AREA\s*STATEMENT|PLOT\s*AREA|BUILDING\s*AREA|MISCELLANUS\s*BUILDING\s*AREA|GREEN\s*AREA|BUILT\s*UP\s*AREA|CARPET\s*AREA)\b/i;
 
   function classifyLabel(text) {
     const u = String(text || '').toUpperCase().trim();
@@ -29,7 +31,7 @@
     if (/\b(ROAD|STREET|AVENUE|HIGHWAY|LANE|DRIVEWAY|ENTRY|EXIT|PATH)\b/.test(u)) {
       return { zone_type: 'road', icon: 'ROAD', shape: 'road' };
     }
-    if (/\b(SECURITY|CABIN|GATE|CHECKPOST|GUARD|RESTROOM|DOCK)\b/.test(u)) {
+    if (/\b(SECURITY|CABIN|GATE|CHECKPOST|GUARD|RESTROOM)\b/.test(u)) {
       return { zone_type: 'utility', icon: 'UTIL', shape: 'rect' };
     }
     if (/\b(SUB\s*STATION|TRANSFORMER|UG\s*SUMP|PUMP\s*ROOM|ELECTRICAL)\b/.test(u)) {
@@ -54,13 +56,6 @@
     return NOISE_ONLY_RE.test(t);
   }
 
-  function isArchitecturalKeyword(text) {
-    const u = String(text || '').trim().toUpperCase();
-    if (/\b\d+(\.\d+)?\s*M\b/.test(u)) return false;
-    if (/^(?:ROAD|WIDE\s*ROAD|INTERNAL\s*ROAD|DOCK|CANOPY|RAMP)$/i.test(u)) return false;
-    return /\b(B-?\d+|WH-?\d+|BUILDING|BLOCK|TOWER|WAREHOUSE|SHED|BAY|SECURITY|CABIN|GATE|SUB\s*STATION|TRANSFORMER|UG\s*SUMP|PUMP\s*ROOM|STP|WTP|OSR|OS-?\d+|GREEN\s*BELT|LANDSCAPE|PARKING|ENTRY|EXIT|WEIGH\s*BRIDGE|CANTEEN|ADMIN|OFFICE|TEMPLE|MOSQUE|METRO|BRIDGE)\b/.test(u);
-  }
-
   function isMasterplanNoise(text, xPct, yPct, siteRoi) {
     const t = String(text || '').trim();
     if (t.length <= 1) return true;
@@ -70,6 +65,9 @@
     if (STOPWORDS_RE.test(t)) return true;
     if (NOISE_TERMS_RE.test(t)) return true;
     if (ROAD_DIM_RE.test(t)) return true;
+    if (SUBPART_NOISE_RE.test(t)) return true;
+    if (AREA_TABLE_RE.test(t)) return true;
+    if (/^\d+[\d,.]*\s*M(?:TR)?$/i.test(t)) return true;
     if (/\b(PLINE|PATRA|LINE|SQMT|SQM|SQFT|ACRES?|HECTARES?|GROUND|COVERAGE|OPTION|REV|REVISION|SHEET|DRAWING|SCALE|PERCENTAGE)\b/i.test(t)) {
       const stripped = t
         .replace(/\b(PLINE|PATRA|LINE|SQMT|SQM|SQFT|ACRES?|HECTARES?|GROUND|COVERAGE|OPTION|REV|REVISION|SHEET|DRAWING|SCALE|PERCENTAGE|\d+[\d,.]*)\b/gi, '')
@@ -81,6 +79,32 @@
       return true;
     }
     return false;
+  }
+
+  function isSpaceCode(text) {
+    const t = String(text || '').trim();
+    return /^(?:(?:B|WH|PLOT|BLOCK|TOWER|WING|BAY|SHED|PHASE|PARCEL|SECTOR|ZONE|UNIT|BLDG|BUILDING|OS|OSR)[-_\s]?[A-Z0-9]+|[A-Z]{1,3}[-_\s]?\d+[A-Z]?)$/i.test(t);
+  }
+
+  function isSpaceFacility(text) {
+    const t = String(text || '').trim();
+    if (isMasterplanNoise(t, 50, 50, null)) return false;
+    return /\b(BUILDING|WAREHOUSE|SHED|FACTORY|PLANT|OFFICE|ADMIN|ADMINISTRATION|SECURITY\s*CABIN|GATE\s*HOUSE|GUARD\s*ROOM|SUB\s*STATION|ELECTRICAL\s*ROOM|STP|WTP|UG\s*SUMP|PUMP\s*ROOM|CANTEEN|CAFETERIA|CLUBHOUSE|AMENITY|PARKING\s*STRUCTURE|MULTI\s*LEVEL\s*PARKING|OSR|PARK|GREEN\s*BELT|LANDSCAPE|TOWN\s*HALL|CLINIC|HOSPITAL|SCHOOL|HOSTEL|AUDITORIUM|COMMUNITY\s*HALL|TEMPLE|MOSQUE|CHURCH)\b/i.test(t);
+  }
+
+  function isSpaceLabel(text, xPct, yPct, siteRoi) {
+    if (isMasterplanNoise(text, xPct, yPct, siteRoi)) return false;
+    return isSpaceCode(text) || isSpaceFacility(text);
+  }
+
+  function extractPureAreaLine(text) {
+    const t = String(text || '').trim();
+    const cleaned = t.replace(/^(?:AREA|BUILT\s*UP\s*AREA|PLOT\s*AREA)?\s*[:=]?\s*/i, '').trim();
+    const m = cleaned.match(AREA_RE);
+    if (m && cleaned.replace(AREA_RE, '').trim().length === 0) {
+      return m[1].trim();
+    }
+    return null;
   }
 
   function parseColorRGB(args) {
@@ -987,38 +1011,43 @@
     // 2. Compute Site Plan ROI
     const siteRoi = vectorGeometry.siteRoi || computeSiteRoi(vectorGeometry.closedPolys);
 
-    // 3. Filter valid candidate text within the site
-    const candidateLines = [];
+    // 3. Separate Area tokens from genuine space labels within site ROI
+    const candidateLabels = [];
     const areaTokens = [];
 
     for (const line of lines) {
       const t = line.text.trim();
-      if (isDimensionNumber(t)) continue;
-      if (isMasterplanNoise(t, line.xPct, line.yPct, siteRoi)) continue;
-
-      const areaMatch = t.match(AREA_RE);
-      if (areaMatch && t.replace(AREA_RE, '').trim().length < 2) {
-        areaTokens.push({ area: areaMatch[1].trim(), xPct: line.xPct, yPct: line.yPct });
+      // Filter out elements outside site ROI (title blocks, summary tables at bottom)
+      if (line.yPct < siteRoi.minY - 2 || line.yPct > siteRoi.maxY + 2 || line.xPct < siteRoi.minX - 2 || line.xPct > siteRoi.maxX + 2) {
         continue;
       }
 
-      candidateLines.push({
-        text: t,
-        area: areaMatch ? areaMatch[1].trim() : '',
-        xPct: (line.xPct + line.maxX) / 2,
-        yPct: line.yPct,
-        claimed: false,
-      });
+      const pureArea = extractPureAreaLine(t);
+      if (pureArea) {
+        areaTokens.push({ area: pureArea, xPct: (line.xPct + line.maxX) / 2, yPct: line.yPct });
+        continue;
+      }
+
+      if (isSpaceLabel(t, line.xPct, line.yPct, siteRoi)) {
+        const areaMatch = t.match(AREA_RE);
+        candidateLabels.push({
+          text: t.replace(AREA_RE, '').replace(/[:=\-]$/, '').trim(),
+          area: areaMatch ? areaMatch[1].trim() : '',
+          xPct: (line.xPct + line.maxX) / 2,
+          yPct: line.yPct,
+        });
+      }
     }
 
+    // 4. Associate Area tokens with candidate space labels inside the same space
     for (const tok of areaTokens) {
       let best = null;
       let bestDist = Infinity;
-      for (const cand of candidateLines) {
+      for (const cand of candidateLabels) {
         if (cand.area) continue;
         const dx = Math.abs(cand.xPct - tok.xPct);
         const dy = tok.yPct - cand.yPct;
-        if (dx <= 5.5 && dy >= -1.5 && dy <= 4.5) {
+        if (dx <= 6.5 && dy >= -1.5 && dy <= 5.5) {
           const d = dx + Math.abs(dy);
           if (d < bestDist) {
             bestDist = d;
@@ -1033,60 +1062,74 @@
       }
     }
 
-    // 4. Parcel-First Synthesis: match candidate lines into closed building & landscape parcels
-    const labels = [];
-
+    // 5. Universal Label-First Shape Binding:
+    // "locate the labels and create the assets based on their shape and done .dont create any new assets which does not exists"
     const siteParcels = (vectorGeometry.closedPolys || []).filter((p) => {
       const cx = parseFloat(p.bbox.x) + parseFloat(p.bbox.w) / 2;
       const cy = parseFloat(p.bbox.y) + parseFloat(p.bbox.h) / 2;
       return cx >= siteRoi.minX - 5 && cx <= siteRoi.maxX + 5 && cy >= siteRoi.minY - 5 && cy <= siteRoi.maxY + 5;
     });
 
-    // Sort parcels by area descending so full building footprints claim codes before smaller sub-patches
-    siteParcels.sort((a, b) => (b.area || 0) - (a.area || 0));
+    // Priority sort: Building / Plot codes (e.g. B01) claim footprints first, then named facilities
+    candidateLabels.sort((a, b) => {
+      const aCode = isSpaceCode(a.text) ? 1 : 0;
+      const bCode = isSpaceCode(b.text) ? 1 : 0;
+      return bCode - aCode;
+    });
 
-    for (const parcel of siteParcels) {
-      const inside = candidateLines.filter((c) => !c.claimed && pointInPolygon(c.xPct, c.yPct, parcel.polygon));
-      if (inside.length === 0) continue; // DO NOT create phantom assets for unlabelled vector geometry!
+    const labels = [];
+    const claimedParcelIds = new Set();
 
-      // Priority 1: Exact Building / Plot / Zone code from drawing (e.g. "B01", "B02", "B03", "B04", "OS-2", "PLOT-1", "BLOCK A")
-      const codeToken = inside.find((c) =>
-        /^(?:B-?\d+[A-Z]?|WH-?\d+[A-Z]?|PLOT-?\d+|BAY-?\d+|SHED-?\d+|TOWER\s*[A-Z0-9]+|BLOCK\s*[A-Z0-9]+|OS-?\d+)$/i.test(c.text.trim())
-      );
+    for (const cand of candidateLabels) {
+      // Find the tightest enclosing closed vector polygon
+      let bestParcel = null;
+      let bestArea = Infinity;
 
-      // Priority 2: Primary architectural building / facility name from drawing
-      const primaryBuilding = inside.find((c) =>
-        /\b(BUILDING|BLOCK|WAREHOUSE|SHED|BAY|FACILITY|OFFICE|ADMIN|SECURITY|CABIN|GATE|STP|WTP|SUB\s*STATION|TEMPLE|CANTEEN|OSR|GREEN\s*BELT|PARK)\b/i.test(c.text) &&
-        !/\b(DOCK|ROAD|RESTROOM|CANOPY|RAMP)\b/i.test(c.text)
-      );
+      for (let i = 0; i < siteParcels.length; i++) {
+        const parcel = siteParcels[i];
+        const pid = parcel.id || `p_${i}`;
+        if (claimedParcelIds.has(pid)) continue;
+        if (pointInPolygon(cand.xPct, cand.yPct, parcel.polygon)) {
+          if (parcel.area >= 6 && parcel.area < bestArea) {
+            bestArea = parcel.area;
+            bestParcel = { parcel, id: pid };
+          }
+        }
+      }
 
-      // Priority 3: General descriptive architectural text from drawing (excluding dock/road/canopy noise)
-      const generalText = inside.find((c) => {
-        const t = c.text.trim();
-        if (isDimensionNumber(t) || t.length < 2) return false;
-        if (/^(?:DOCK|CANOPY|RAMP|SHUTTER|ROAD)$/i.test(t)) return false;
-        return !/^\d+$/.test(t.replace(/\D/g, ''));
-      });
+      // If text insertion point is slightly offset from polygon center, test small offsets
+      if (!bestParcel) {
+        const offsets = [[0, 1.2], [0, -1.2], [1.5, 0], [-1.5, 0], [1.5, 1.2], [-1.5, -1.2]];
+        for (const [dx, dy] of offsets) {
+          for (let i = 0; i < siteParcels.length; i++) {
+            const parcel = siteParcels[i];
+            const pid = parcel.id || `p_${i}`;
+            if (claimedParcelIds.has(pid)) continue;
+            if (pointInPolygon(cand.xPct + dx, cand.yPct + dy, parcel.polygon)) {
+              if (parcel.area >= 6 && parcel.area < bestArea) {
+                bestArea = parcel.area;
+                bestParcel = { parcel, id: pid };
+              }
+            }
+          }
+          if (bestParcel) break;
+        }
+      }
 
-      const matchedCand = codeToken || primaryBuilding || generalText;
-      if (!matchedCand) continue; // If no valid drawing label is inside this parcel, SKIP!
+      // CRITICAL: DO NOT CREATE AN ASSET IF NO ENCLOSING SHAPE EXISTS!
+      // Guarantees zero phantom assets from floating text, notes, table rows, or marginalia.
+      if (!bestParcel) continue;
 
-      // Retain the EXACT label from the drawing — NEVER prepend "Building" or alter it!
-      const title = matchedCand.text.trim();
-      const area = matchedCand.area || (inside.find((c) => c.area)?.area || '');
-
-      inside.forEach((c) => {
-        c.claimed = true;
-      });
-
-      // Categorize purely based on the label
+      claimedParcelIds.add(bestParcel.id);
+      const parcel = bestParcel.parcel;
+      const title = cand.text.trim();
       const cls = classifyLabel(title);
       const cx = Math.round((parseFloat(parcel.bbox.x) + parseFloat(parcel.bbox.w) / 2) * 100) / 100;
       const cy = Math.round((parseFloat(parcel.bbox.y) + parseFloat(parcel.bbox.h) / 2) * 100) / 100;
 
       labels.push({
         text: title,
-        area,
+        area: cand.area || '',
         zone_type: cls.zone_type,
         icon: cls.icon,
         shape: 'polygon',
@@ -1096,25 +1139,6 @@
         vectorSource: parcel.source || 'vector-pdf',
         xPct: cx,
         yPct: cy,
-        selected: true,
-      });
-    }
-
-    // 5. Add remaining unclaimed candidate lines ONLY if they match architectural keywords (Gates, Utilities, Landmarks)
-    for (const cand of candidateLines) {
-      if (cand.claimed) continue;
-      if (!isArchitecturalKeyword(cand.text)) continue;
-      if (isMasterplanNoise(cand.text, cand.xPct, cand.yPct, siteRoi)) continue;
-
-      const cls = classifyLabel(cand.text);
-      labels.push({
-        text: cand.text,
-        area: cand.area,
-        zone_type: cls.zone_type,
-        icon: cls.icon || 'ZONE',
-        shape: cls.shape,
-        xPct: Math.round(cand.xPct * 100) / 100,
-        yPct: Math.round(cand.yPct * 100) / 100,
         selected: true,
       });
     }
