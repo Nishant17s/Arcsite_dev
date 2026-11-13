@@ -4011,10 +4011,13 @@
 
       const groups = [
         { title: 'Buildings & Warehouses', filter: (s) => s.zone_type === 'building' },
-        { title: 'Landscaping & Green Belts', filter: (s) => s.zone_type === 'landscape' },
+        { title: 'Security & Access Control', filter: (s) => s.zone_type === 'security' },
+        { title: 'Facilities & Restrooms', filter: (s) => s.zone_type === 'facility' },
         { title: 'Utilities & Infrastructure', filter: (s) => s.zone_type === 'utility' || s.zone_type === 'civic' },
-        { title: 'Circulation & Roads', filter: (s) => s.zone_type === 'road' || s.zone_type === 'transit' },
-        { title: 'Other Site Zones', filter: (s) => !['building', 'landscape', 'utility', 'civic', 'road', 'transit'].includes(s.zone_type) },
+        { title: 'Amenities & Services', filter: (s) => s.zone_type === 'amenity' },
+        { title: 'Landscaping & Open Spaces', filter: (s) => s.zone_type === 'landscape' },
+        { title: 'Parking & Circulation', filter: (s) => s.zone_type === 'parking' || s.zone_type === 'road' || s.zone_type === 'transit' },
+        { title: 'Other Site Zones', filter: (s) => !['building', 'security', 'facility', 'utility', 'civic', 'amenity', 'landscape', 'parking', 'road', 'transit'].includes(s.zone_type) },
       ];
 
       let html = '';

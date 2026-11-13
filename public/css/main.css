@@ -1341,6 +1341,28 @@ button, input, select, textarea {
 .hotspot-badge.cad-tag-util {
   border-left-color: #06B6D4;
 }
+.hotspot-badge.cad-tag-water {
+  border-left-color: #0EA5E9;
+}
+.hotspot-badge.cad-tag-power {
+  border-left-color: #EAB308;
+}
+.hotspot-badge.cad-tag-security,
+.hotspot-badge.cad-tag-sec {
+  border-left-color: #EF4444;
+}
+.hotspot-badge.cad-tag-facility,
+.hotspot-badge.cad-tag-rest {
+  border-left-color: #F97316;
+}
+.hotspot-badge.cad-tag-amenity,
+.hotspot-badge.cad-tag-admin {
+  border-left-color: #8B5CF6;
+}
+.hotspot-badge.cad-tag-parking,
+.hotspot-badge.cad-tag-park {
+  border-left-color: #6366F1;
+}
 .hotspot-badge.cad-tag-transit,
 .hotspot-badge.cad-tag-metro {
   border-left-color: #A855F7;
