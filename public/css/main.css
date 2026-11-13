@@ -2462,19 +2462,164 @@ button, input, select, textarea {
   left: 50%;
   transform: translateX(-50%);
   z-index: 16;
-  background: var(--header-bg);
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   color: #FFFFFF;
-  padding: 8px 14px;
+  padding: 6px 12px;
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 12.5px;
+  gap: 8px;
+  font-size: 12px;
   font-weight: 500;
-  box-shadow: var(--shadow-xl);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  max-width: 95vw;
+  flex-wrap: wrap;
 }
 .poly-draw-bar .btn-ghost {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+/* CAD Predefined Shapes Dropdown & Palette */
+.cad-shape-dropdown-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.cad-shape-picker-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 11.5px;
+  padding: 3px 8px;
+}
+.cad-shape-picker-btn:hover {
+  background: rgba(56, 189, 248, 0.2) !important;
+  border-color: #38BDF8 !important;
+}
+.cad-active-shape-icon {
+  display: flex;
+  align-items: center;
+  color: #38BDF8;
+}
+.cad-shapes-palette {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: #0F172A;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
+  z-index: 50;
+  width: 280px;
+}
+.cad-palette-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94A3B8;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.cad-shapes-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.cad-shape-opt {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #F8FAFC;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.cad-shape-opt span {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: #94A3B8;
+  white-space: nowrap;
+}
+.cad-shape-opt:hover {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38BDF8;
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+.cad-shape-opt:hover span {
+  color: #FFFFFF;
+}
+.cad-shape-opt.active {
+  background: #0284C7;
+  border-color: #38BDF8;
+  color: #FFFFFF;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+.cad-shape-opt.active span {
+  color: #FFFFFF;
+  font-weight: 700;
+}
+
+/* Pointer & Shape Size Controls */
+.cad-pointer-size-group,
+.cad-shape-scale-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.cad-mini-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #94A3B8;
+  margin-right: 2px;
+}
+.cad-ptr-btn {
+  padding: 2px 5px !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  border-radius: 3px !important;
+  min-width: 24px;
+}
+.cad-ptr-btn.active {
+  background: #3B82F6 !important;
+  color: #FFFFFF !important;
+}
+.cad-sz-btn {
+  padding: 1px 7px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  border-radius: 3px !important;
+}
+.cad-sz-display {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #38BDF8;
+  min-width: 28px;
+  text-align: center;
+}
+.cad-shape-preview {
+  pointer-events: none;
 }
 
 /* Status Pills */

@@ -83,13 +83,13 @@
 
   function isSpaceCode(text) {
     const t = String(text || '').trim();
-    return /^(?:(?:B|WH|PLOT|BLOCK|TOWER|WING|BAY|SHED|PHASE|PARCEL|SECTOR|ZONE|UNIT|BLDG|BUILDING|OS|OSR)[-_\s]?[A-Z0-9]+|[A-Z]{1,3}[-_\s]?\d+[A-Z]?)$/i.test(t);
+    return /^(?:(?:B|WH|PLOT|BLOCK(?:\s*NO\.?)?|TOWER|WING|BAY|SHED|PHASE|PARCEL|SECTOR|ZONE|UNIT|BLDG|BUILDING|OS|OSR|VILLA|SHOP)[-_\s]?[A-Z0-9]+|[A-Z]{1,3}[-_\s]?\d+[A-Z]?)$/i.test(t);
   }
 
   function isSpaceFacility(text) {
     const t = String(text || '').trim();
     if (isMasterplanNoise(t, 50, 50, null)) return false;
-    return /\b(BUILDING|WAREHOUSE|SHED|FACTORY|PLANT|OFFICE|ADMIN|ADMINISTRATION|SECURITY\s*CABIN|GATE\s*HOUSE|GUARD\s*ROOM|SUB\s*STATION|ELECTRICAL\s*ROOM|STP|WTP|UG\s*SUMP|PUMP\s*ROOM|CANTEEN|CAFETERIA|CLUBHOUSE|AMENITY|PARKING\s*STRUCTURE|MULTI\s*LEVEL\s*PARKING|OSR|PARK|GREEN\s*BELT|LANDSCAPE|TOWN\s*HALL|CLINIC|HOSPITAL|SCHOOL|HOSTEL|AUDITORIUM|COMMUNITY\s*HALL|TEMPLE|MOSQUE|CHURCH)\b/i.test(t);
+    return /\b(BUILDING|WAREHOUSE|SHED|FACTORY|PLANT|OFFICE|ADMIN|ADMINISTRATION|SECURITY\s*CABIN|GATE\s*HOUSE|GUARD\s*ROOM|SUB\s*STATION|ELECTRICAL\s*ROOM|STP|WTP|UG\s*SUMP|PUMP\s*ROOM|CANTEEN|CAFETERIA|CLUBHOUSE|CLUB\s*HOUSE|AMENITY|PARKING\s*STRUCTURE|MULTI\s*LEVEL\s*PARKING|OSR|PARK|GREEN\s*BELT|LANDSCAPE|TOWN\s*HALL|CLINIC|HOSPITAL|SCHOOL|HOSTEL|AUDITORIUM|COMMUNITY\s*HALL|TEMPLE|MOSQUE|CHURCH|RETAIL|COMMERCIAL|MALL|HOTEL|RESIDENTIAL|APARTMENT|VILLA|STAY|STORE|STORAGE)\b/i.test(t);
   }
 
   function isSpaceLabel(text, xPct, yPct, siteRoi) {
@@ -155,11 +155,11 @@
 
   function computeSiteRoi(closedPolys) {
     if (!Array.isArray(closedPolys) || closedPolys.length === 0) {
-      return { minX: 5, minY: 16, maxX: 95, maxY: 82 };
+      return { minX: 0, minY: 0, maxX: 100, maxY: 100 };
     }
     const siteParcels = closedPolys.filter(p => p.category === 'building' || p.category === 'landscape');
     if (siteParcels.length === 0) {
-      return { minX: 5, minY: 16, maxX: 95, maxY: 82 };
+      return { minX: 0, minY: 0, maxX: 100, maxY: 100 };
     }
     let minX = 100, minY = 100, maxX = 0, maxY = 0;
     for (const p of siteParcels) {
@@ -171,10 +171,10 @@
       }
     }
     return {
-      minX: Math.max(0, Math.round(minX - 8)),
-      minY: Math.max(14, Math.round(minY - 6)),
-      maxX: Math.min(100, Math.round(maxX + 8)),
-      maxY: Math.min(84, Math.round(maxY + 6)),
+      minX: Math.max(0, Math.round(minX - 6)),
+      minY: Math.max(0, Math.round(minY - 6)),
+      maxX: Math.min(100, Math.round(maxX + 6)),
+      maxY: Math.min(100, Math.round(maxY + 6)),
     };
   }
 
@@ -919,7 +919,7 @@
       const siteRoi = computeSiteRoi(clusteredPolys);
       return { closedPolys: clusteredPolys, siteRoi, segmentCount: chosenSegs.length, findFaceAt };
     } catch {
-      return { closedPolys: [], siteRoi: { minX: 5, minY: 16, maxX: 95, maxY: 82 }, findFaceAt: null };
+      return { closedPolys: [], siteRoi: { minX: 0, minY: 0, maxX: 100, maxY: 100 }, findFaceAt: null };
     }
   }
 

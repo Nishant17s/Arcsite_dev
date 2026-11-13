@@ -177,6 +177,9 @@
       if (disp) {
         disp.textContent = `${Math.round(scale * 100)}%`;
       }
+      if (window.ProjectController && typeof window.ProjectController.renderPolygons === 'function') {
+        window.ProjectController.renderPolygons();
+      }
     },
   };
 

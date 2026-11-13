@@ -295,9 +295,107 @@
             </div>
           </div>
         </div>
-        <!-- Polygon Drawing Floating Bar -->
+        <!-- CAD Drawing & Predefined Shape Placement Floating Bar -->
         <div class="poly-draw-bar" id="poly-draw-bar" hidden>
-          <span id="poly-draw-hint">Click plot corners on map (3+ points)</span>
+          <!-- Predefined Shapes Palette Trigger -->
+          <div class="cad-shape-dropdown-wrapper">
+            <button type="button" class="btn btn-ghost btn-xs cad-shape-picker-btn" id="cad-shape-picker-btn" title="Choose drawing shape or predefined template">
+              <span class="cad-active-shape-icon" id="cad-active-shape-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 18 21 6 21 2 8.5"/></svg>
+              </span>
+              <span id="cad-active-shape-name">Polygon</span>
+              <svg class="dropdown-arrow" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <!-- Predefined Shapes Palette Popover (CAD Grade) -->
+            <div class="cad-shapes-palette" id="cad-shapes-palette" hidden>
+              <div class="cad-palette-title">Predefined CAD Shapes</div>
+              <div class="cad-shapes-grid">
+                <button type="button" class="cad-shape-opt active" data-shape="polygon" title="Polygon (Corner-by-Corner Tracing)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 22 8.5 18 21 6 21 2 8.5"/></svg>
+                  <span>Freeform</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="rect" title="Rectangle (Building Box)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="1"/></svg>
+                  <span>Rectangle</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="rounded-rect" title="Rounded Rectangle">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="4.5"/></svg>
+                  <span>Round Rect</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="l-shape" title="L-Shape Stepped Building">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="4 4 12 4 12 12 20 12 20 20 4 20 4 4"/></svg>
+                  <span>L-Shape</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="circle" title="Circle (Tank / Sump / Silo)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/></svg>
+                  <span>Circle</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="triangle" title="Equilateral Triangle">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 3 22 21 2 21"/></svg>
+                  <span>Triangle</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="right-triangle" title="Right-Angled Triangle">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="4 4 20 20 4 20"/></svg>
+                  <span>Right Tri</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="diamond" title="Diamond / Rhombus">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 22 12 12 22 2 12"/></svg>
+                  <span>Diamond</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="pentagon" title="Pentagon (5-Sided)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 22 9.5 18 21 6 21 2 9.5"/></svg>
+                  <span>Pentagon</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="hexagon" title="Hexagon (6-Sided)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 21 7 21 17 12 22 3 17 3 7"/></svg>
+                  <span>Hexagon</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="arrow-right" title="Right Traffic Arrow">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  <span>Arrow R</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="arrow-up" title="Up / North Arrow">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                  <span>Arrow U</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="arrow-left" title="Left Traffic Arrow">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                  <span>Arrow L</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="arrow-down" title="Down Traffic Arrow">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+                  <span>Arrow D</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="star" title="Star (5-Point Landmark)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  <span>Star</span>
+                </button>
+                <button type="button" class="cad-shape-opt" data-shape="cloud" title="Cloud / Canopy Zone">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
+                  <span>Cloud</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Variable Pointer / Grip Size Control -->
+          <div class="cad-pointer-size-group" title="Adjust corner pointer/grip size (never blows up on zoom)">
+            <span class="cad-mini-label">Pointer:</span>
+            <button type="button" class="btn btn-ghost btn-xs cad-ptr-btn" data-ptrsz="6" title="Fine pointer (6px)">6px</button>
+            <button type="button" class="btn btn-ghost btn-xs cad-ptr-btn active" data-ptrsz="10" title="Standard pointer (10px)">10px</button>
+            <button type="button" class="btn btn-ghost btn-xs cad-ptr-btn" data-ptrsz="14" title="Medium pointer (14px)">14px</button>
+            <button type="button" class="btn btn-ghost btn-xs cad-ptr-btn" data-ptrsz="18" title="Large pointer (18px)">18px</button>
+          </div>
+
+          <!-- Variable Shape Scale Control (Predefined Shapes) -->
+          <div class="cad-shape-scale-group" id="cad-shape-scale-group" hidden title="Adjust predefined shape size">
+            <span class="cad-mini-label">Shape Size:</span>
+            <button type="button" class="btn btn-ghost btn-xs cad-sz-btn" id="cad-sz-minus" title="Scale Down (smaller)">-</button>
+            <span class="cad-sz-display" id="cad-sz-display">15%</span>
+            <button type="button" class="btn btn-ghost btn-xs cad-sz-btn" id="cad-sz-plus" title="Scale Up (larger)">+</button>
+          </div>
+
+          <span id="poly-draw-hint">Click corners (3+ points)</span>
           <button type="button" class="btn btn-ghost btn-xs" id="poly-ortho-btn" title="Toggle Ortho Mode (O)">Ortho: OFF</button>
           <button type="button" class="btn btn-ghost btn-xs" id="poly-undo-btn">Undo</button>
           <button type="button" class="btn btn-primary btn-xs" id="poly-finish-btn" disabled>Finish Zone</button>
