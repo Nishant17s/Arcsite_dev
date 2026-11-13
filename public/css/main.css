@@ -2247,36 +2247,80 @@ button, input, select, textarea {
   vector-effect: non-scaling-stroke;
 }
 /* CAD Grips & Handles */
-.poly-vertex-handle {
-  fill: #0F172A;
-  stroke: #38BDF8;
-  stroke-width: 1.8px;
+/* CAD Grips & Handles (Placed Assets & Draft Drawing) */
+.poly-vertex-handle,
+.poly-draft-vertex-handle,
+.cad-grip-vertex {
+  fill: #FFFFFF !important;
+  stroke: #0284C7 !important;
+  stroke-width: 2px !important;
   vector-effect: non-scaling-stroke;
-  pointer-events: auto;
-  cursor: grab;
-  transition: fill 0.1s, stroke 0.1s;
+  pointer-events: auto !important;
+  cursor: grab !important;
+  transition: fill 0.12s ease, stroke 0.12s ease;
 }
 .poly-vertex-handle:hover,
-.poly-vertex-handle.active {
-  fill: #EF4444 !important;
+.poly-draft-vertex-handle:hover,
+.cad-grip-vertex:hover {
+  fill: #38BDF8 !important;
   stroke: #FFFFFF !important;
-  cursor: crosshair;
+  cursor: grab !important;
+  filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.8));
 }
-.poly-edge-handle {
-  fill: #0F172A;
-  stroke: #38BDF8;
-  stroke-width: 1.5px;
+.poly-vertex-handle.active,
+.poly-vertex-handle:active,
+.poly-draft-vertex-handle.active,
+.poly-draft-vertex-handle:active,
+.cad-grip-vertex.active {
+  fill: #2563EB !important;
+  stroke: #FFFFFF !important;
+  cursor: grabbing !important;
+  filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.9));
+}
+
+.poly-edge-handle,
+.poly-draft-edge-handle,
+.cad-grip-edge {
+  fill: #0F172A !important;
+  stroke: #0284C7 !important;
+  stroke-width: 1.8px !important;
   vector-effect: non-scaling-stroke;
-  pointer-events: auto;
-  cursor: cell;
-  rx: 0.2px;
-  transition: fill 0.1s, stroke 0.1s;
+  pointer-events: auto !important;
+  cursor: move !important;
+  rx: 0.35px;
+  transition: fill 0.12s ease, stroke 0.12s ease;
 }
 .poly-edge-handle:hover,
-.poly-edge-handle.active {
-  fill: #EF4444 !important;
+.poly-draft-edge-handle:hover,
+.cad-grip-edge:hover {
+  fill: #0284C7 !important;
   stroke: #FFFFFF !important;
-  cursor: copy;
+  cursor: move !important;
+  filter: drop-shadow(0 0 4px rgba(2, 132, 199, 0.8));
+}
+.poly-edge-handle.active,
+.poly-edge-handle:active,
+.poly-draft-edge-handle.active,
+.poly-draft-edge-handle:active,
+.cad-grip-edge.active {
+  fill: #2563EB !important;
+  stroke: #FFFFFF !important;
+  cursor: grabbing !important;
+  filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.9));
+}
+
+.poly-draft-placed-shape {
+  fill: rgba(2, 132, 199, 0.16) !important;
+  stroke: #0284C7 !important;
+  stroke-width: 2px !important;
+  vector-effect: non-scaling-stroke;
+  pointer-events: auto !important;
+  cursor: move !important;
+  transition: fill 0.15s ease;
+}
+.poly-draft-placed-shape:hover {
+  fill: rgba(2, 132, 199, 0.22) !important;
+  stroke: #0369A1 !important;
 }
 
 /* CAD Crosshair Overlay */
@@ -2462,23 +2506,53 @@ button, input, select, textarea {
   left: 50%;
   transform: translateX(-50%);
   z-index: 16;
-  background: rgba(15, 23, 42, 0.94);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.97) 0%, rgba(30, 41, 59, 0.96) 100%);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.28);
   color: #FFFFFF;
-  padding: 6px 12px;
-  border-radius: var(--radius-lg);
+  padding: 6px 14px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 12px;
   font-weight: 500;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 14px 40px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08);
   max-width: 95vw;
   flex-wrap: wrap;
 }
 .poly-draw-bar .btn-ghost {
   color: rgba(255, 255, 255, 0.88);
+}
+.poly-draw-bar #poly-draw-hint {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #94A3B8;
+  padding: 3px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
+}
+.poly-draw-bar #poly-finish-btn {
+  background: linear-gradient(135deg, #059669 0%, #10B981 100%) !important;
+  border: 1px solid #34D399 !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  padding: 4px 12px !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35) !important;
+  transition: all 0.15s ease !important;
+}
+.poly-draw-bar #poly-finish-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.55) !important;
+  transform: translateY(-1px);
+}
+.poly-draw-bar #poly-finish-btn:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
 }
 
 /* CAD Predefined Shapes Dropdown & Palette */

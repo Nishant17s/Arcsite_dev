@@ -1107,15 +1107,34 @@
         else if (ProjectController.polyDraw.shapeMode !== 'polygon' && ProjectController.polyDraw.placed) {
           const pts = ProjectController.polyDraw.points;
           if (pts.length >= 3) {
+            const polyLen = pts.length;
             const ptsStr = pts.map((p) => `${p[0]},${p[1]}`).join(' ');
-            draftHtml += `<polygon class="poly-zone active" points="${App.escapeHtml(ptsStr)}" style="fill: rgba(56, 189, 248, 0.25); stroke: #38BDF8; stroke-width: 2; vector-effect: non-scaling-stroke;"></polygon>`;
+            draftHtml += `<polygon class="poly-zone active poly-draft-placed-shape" points="${App.escapeHtml(ptsStr)}"></polygon>`;
 
-            // Vertex handles on placed shape (zoom-invariant)
+            // Edge midpoint handles on placed shape (zoom-invariant horizontal pills ▬)
+            const edgeW = gw * 1.6;
+            const edgeH = gh * 0.75;
+            const edgeWHalf = edgeW / 2;
+            const edgeHHalf = edgeH / 2;
             pts.forEach((p, idx) => {
-              const isActive = ProjectController.vertexDrag?.isDraft && ProjectController.vertexDrag.idx === idx;
-              const fill = isActive ? '#F43F5E' : '#0F172A';
-              const stroke = isActive ? '#FFFFFF' : '#38BDF8';
-              draftHtml += `<rect class="cad-grip-vertex poly-draft-vertex-handle${isActive ? ' active' : ''}" data-draft-vidx="${idx}" x="${(p[0] - gwHalf).toFixed(3)}" y="${(p[1] - ghHalf).toFixed(3)}" width="${gw.toFixed(3)}" height="${gh.toFixed(3)}" style="fill: ${fill}; stroke: ${stroke}; stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: move;"></rect>`;
+              const nextP = pts[(idx + 1) % polyLen];
+              const midX = (p[0] + nextP[0]) / 2;
+              const midY = (p[1] + nextP[1]) / 2;
+              const isActive =
+                ProjectController.vertexDrag?.isDraft &&
+                ProjectController.vertexDrag?.isEdge &&
+                ProjectController.vertexDrag.edgeIdx === idx;
+              draftHtml += `<rect class="cad-grip-edge poly-draft-edge-handle${isActive ? ' active' : ''}" data-draft-eidx="${idx}" x="${(midX - edgeWHalf).toFixed(3)}" y="${(midY - edgeHHalf).toFixed(3)}" width="${edgeW.toFixed(3)}" height="${edgeH.toFixed(3)}" rx="${(edgeHHalf * 0.5).toFixed(3)}" title="Drag to stretch edge (or right-click to add vertex)"></rect>`;
+            });
+
+            // Corner vertex handles on placed shape (zoom-invariant square boxes ■)
+            pts.forEach((p, idx) => {
+              const isActive =
+                ProjectController.vertexDrag?.isDraft &&
+                !ProjectController.vertexDrag?.isEdge &&
+                !ProjectController.vertexDrag?.isMoveAll &&
+                ProjectController.vertexDrag.idx === idx;
+              draftHtml += `<rect class="cad-grip-vertex poly-draft-vertex-handle${isActive ? ' active' : ''}" data-draft-vidx="${idx}" x="${(p[0] - gwHalf).toFixed(3)}" y="${(p[1] - ghHalf).toFixed(3)}" width="${gw.toFixed(3)}" height="${gh.toFixed(3)}" title="Drag corner to stretch"></rect>`;
             });
           }
         }
@@ -1224,6 +1243,7 @@
         });
       });
 
+      // Draft Corner Vertex Handles
       svg.querySelectorAll('.poly-draft-vertex-handle').forEach((vh) => {
         vh.addEventListener('mousedown', (e) => {
           if (e.button !== 0) return;
@@ -1232,12 +1252,72 @@
           const vidx = parseInt(vh.dataset.draftVidx, 10);
           ProjectController.vertexDrag = {
             isDraft: true,
+            isEdge: false,
+            isMoveAll: false,
             idx: vidx,
             startX: e.clientX,
             startY: e.clientY,
             moved: false,
           };
+          vh.classList.add('active');
+        });
+      });
+
+      // Draft Edge Midpoint Handles (Drag to stretch edge wall)
+      svg.querySelectorAll('.poly-draft-edge-handle').forEach((eh) => {
+        eh.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
+          e.stopPropagation();
+          e.preventDefault();
+          const edgeIdx = parseInt(eh.dataset.draftEidx, 10);
+          const pts = ProjectController.polyDraw.points;
+          const nextIdx = (edgeIdx + 1) % pts.length;
+          ProjectController.vertexDrag = {
+            isDraft: true,
+            isEdge: true,
+            isMoveAll: false,
+            edgeIdx,
+            nextIdx,
+            startX: e.clientX,
+            startY: e.clientY,
+            origP1: [pts[edgeIdx][0], pts[edgeIdx][1]],
+            origP2: [pts[nextIdx][0], pts[nextIdx][1]],
+            moved: false,
+          };
+          eh.classList.add('active');
+        });
+        eh.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const edgeIdx = parseInt(eh.dataset.draftEidx, 10);
+          const pts = ProjectController.polyDraw.points;
+          const nextIdx = (edgeIdx + 1) % pts.length;
+          const mid = [
+            Math.round(((pts[edgeIdx][0] + pts[nextIdx][0]) / 2) * 100) / 100,
+            Math.round(((pts[edgeIdx][1] + pts[nextIdx][1]) / 2) * 100) / 100,
+          ];
+          pts.splice(edgeIdx + 1, 0, mid);
           ProjectController.renderPolygons();
+          App.toast('Added vertex to edge — drag to reshape', 'info');
+        });
+      });
+
+      // Draft Placed Shape Body (Drag to reposition whole shape)
+      svg.querySelectorAll('.poly-draft-placed-shape').forEach((poly) => {
+        poly.addEventListener('mousedown', (e) => {
+          if (e.button !== 0 || !ProjectController.polyDraw.placed) return;
+          e.stopPropagation();
+          e.preventDefault();
+          const pts = ProjectController.polyDraw.points;
+          ProjectController.vertexDrag = {
+            isDraft: true,
+            isEdge: false,
+            isMoveAll: true,
+            startX: e.clientX,
+            startY: e.clientY,
+            origPts: pts.map((p) => [p[0], p[1]]),
+            moved: false,
+          };
         });
       });
     },
@@ -1570,6 +1650,44 @@
         let yPct = Math.round(Math.max(0, Math.min(100, ((pt.clientY - rect.top) / (rect.height || 1)) * 100)) * 100) / 100;
 
         if (vd.isDraft) {
+          const tRect = transformEl.getBoundingClientRect();
+          if (!tRect.width || !tRect.height) return;
+
+          // Case 1: Move whole shape
+          if (vd.isMoveAll && vd.origPts) {
+            const dxPct = ((pt.clientX - vd.startX) / tRect.width) * 100;
+            const dyPct = ((pt.clientY - vd.startY) / tRect.height) * 100;
+            if (Math.hypot(dxPct, dyPct) > 0.05) vd.moved = true;
+            ProjectController.polyDraw.points = vd.origPts.map(([ox, oy]) => [
+              Math.round(Math.max(0, Math.min(100, ox + dxPct)) * 100) / 100,
+              Math.round(Math.max(0, Math.min(100, oy + dyPct)) * 100) / 100,
+            ]);
+            ProjectController.renderPolygons();
+            return;
+          }
+
+          // Case 2: Drag edge midpoint handle (stretches that edge/wall)
+          if (vd.isEdge && vd.origP1 && vd.origP2) {
+            const dxPct = ((pt.clientX - vd.startX) / tRect.width) * 100;
+            const dyPct = ((pt.clientY - vd.startY) / tRect.height) * 100;
+            if (Math.hypot(dxPct, dyPct) > 0.05) vd.moved = true;
+
+            const pts = ProjectController.polyDraw.points;
+            if (pts[vd.edgeIdx] && pts[vd.nextIdx]) {
+              pts[vd.edgeIdx] = [
+                Math.round(Math.max(0, Math.min(100, vd.origP1[0] + dxPct)) * 100) / 100,
+                Math.round(Math.max(0, Math.min(100, vd.origP1[1] + dyPct)) * 100) / 100,
+              ];
+              pts[vd.nextIdx] = [
+                Math.round(Math.max(0, Math.min(100, vd.origP2[0] + dxPct)) * 100) / 100,
+                Math.round(Math.max(0, Math.min(100, vd.origP2[1] + dyPct)) * 100) / 100,
+              ];
+              ProjectController.renderPolygons();
+            }
+            return;
+          }
+
+          // Case 3: Drag individual corner vertex
           if (ProjectController.polyDraw.points && ProjectController.polyDraw.points[vd.idx]) {
             ProjectController.polyDraw.points[vd.idx] = [xPct, yPct];
             vd.moved = true;
@@ -2629,6 +2747,12 @@
 
     updateCadCrosshair(e) {
       const overlay = document.getElementById('cad-crosshair-overlay');
+      const readout = document.getElementById('cad-dynamic-readout');
+      if (ProjectController.polyDraw.placed || ProjectController.vertexDrag) {
+        if (overlay) overlay.hidden = true;
+        if (readout) readout.hidden = true;
+        return;
+      }
       if (!overlay) return;
       overlay.hidden = false;
 
@@ -2677,7 +2801,6 @@
       const hLine = document.getElementById('cad-crosshair-h');
       const vLine = document.getElementById('cad-crosshair-v');
       const pickbox = document.getElementById('cad-pickbox');
-      const readout = document.getElementById('cad-dynamic-readout');
       const snapMarker = document.getElementById('cad-snap-marker');
 
       if (hLine) hLine.style.top = `${finalVy}px`;
@@ -2707,7 +2830,7 @@
 
         if (orthoBadge) orthoBadge.hidden = !isOrtho;
 
-        if (pts.length > 0) {
+        if (pts.length > 0 && ProjectController.polyDraw.shapeMode === 'polygon') {
           const last = pts[pts.length - 1];
           const dx = rawX - last[0];
           const dy = rawY - last[1];
@@ -2947,7 +3070,11 @@
             const finishBtn = document.getElementById('poly-finish-btn');
             if (finishBtn) finishBtn.disabled = false;
             const hint = document.getElementById('poly-draw-hint');
-            if (hint) hint.textContent = 'Drag corners to stretch or click Finish Zone';
+            if (hint) hint.textContent = 'Drag corners or edges to reshape, drag body to move, or click Finish Zone';
+            const overlay = document.getElementById('cad-crosshair-overlay');
+            if (overlay) overlay.hidden = true;
+            const readout = document.getElementById('cad-dynamic-readout');
+            if (readout) readout.hidden = true;
             ProjectController.renderPolygons();
           }
           return;
@@ -2960,7 +3087,7 @@
         }
 
         const pts = ProjectController.polyDraw.points;
-        if (pts.length > 0) {
+        if (pts.length > 0 && ProjectController.polyDraw.shapeMode === 'polygon') {
           const last = pts[pts.length - 1];
           if (Math.hypot(xPct - last[0], yPct - last[1]) < 0.25) return;
         }
