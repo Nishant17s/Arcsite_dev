@@ -2614,7 +2614,13 @@
             const extracted = await window.SmartAssist.extractPdfLabelsFromBuffer(pdfBuf);
             if (extracted.labels.length > 0) {
               await ProjectController.saveDetectedLabels(extracted.labels);
-              ProjectController.loadSuggestionsFromLabels(extracted.labels, extracted.siteAreaText);
+              ProjectController.loadSuggestionsFromLabels(
+                extracted.labels,
+                extracted.siteAreaText,
+                extracted.groundCoverageText,
+                extracted.optionText,
+                extracted.patternModel
+              );
               ProjectController.openSmartAssist();
             }
           } catch {
@@ -3864,10 +3870,15 @@
       }
     },
 
-    loadSuggestionsFromLabels(labels, siteAreaText = '', groundCoverageText = '', optionText = '') {
+    loadSuggestionsFromLabels(labels, siteAreaText = '', groundCoverageText = '', optionText = '', patternModel = null) {
       ProjectController.smartSiteArea = siteAreaText || '';
       ProjectController.smartGroundCoverage = groundCoverageText || '';
       ProjectController.smartOptionText = optionText || '';
+      if (patternModel) {
+        ProjectController.smartPatternModel = patternModel;
+      } else if (!ProjectController.smartPatternModel && window.BuildingPatternEngine) {
+        ProjectController.smartPatternModel = window.BuildingPatternEngine.learnPatterns(ProjectController._cachedPdfVectors, labels);
+      }
       const existingTitles = new Set(ProjectController.assets.map((a) => (a.title || '').toLowerCase()));
 
       const cleanLabels = (labels || []).filter((lbl) => {
@@ -3914,6 +3925,7 @@
           polygon: traced ? traced.polygon : null,
           bbox: traced ? traced.bbox : null,
           vectorSource,
+          patternArchetype: lbl.patternArchetype || (traced && window.BuildingPatternEngine ? window.BuildingPatternEngine.classifyArchetype(traced.bbox, traced.polygon) : null),
           xPct: lbl.xPct,
           yPct: lbl.yPct,
           matchedFiles: matched,
@@ -3983,7 +3995,8 @@
           extracted.labels,
           extracted.siteAreaText,
           extracted.groundCoverageText,
-          extracted.optionText
+          extracted.optionText,
+          extracted.patternModel
         );
         ProjectController.renderSmartAssistList();
         ProjectController.renderHotspots();
@@ -3998,12 +4011,33 @@
       if (!summaryEl || !listEl) return;
 
       const selectedCount = ProjectController.smartSuggestions.filter((s) => s.selected).length;
+      const pm = ProjectController.smartPatternModel;
+      let patternBadgeHtml = '';
+      if (pm && pm.confidence > 0) {
+        const gridDesc = pm.primaryAngle === 0 ? '0° Orthogonal Grid' : `${pm.primaryAngle}° Rotated CAD Grid`;
+        const bayDesc = pm.dominantBay ? `${pm.dominantBay.widthPct.toFixed(1)}% × ${pm.dominantBay.heightPct.toFixed(1)}%` : 'Adaptive';
+        patternBadgeHtml = `
+          <div style="margin-top:6px;padding:6px 8px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:6px;font-size:11px;line-height:1.4;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+              <span style="font-weight:700;color:var(--accent);">Learned Building Pattern</span>
+              <span class="file-badge-cat" style="font-size:9.5px;background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.3);">${pm.confidence}% Match</span>
+            </div>
+            <div style="color:var(--text-muted);display:flex;gap:12px;flex-wrap:wrap;">
+              <span><strong>Grid:</strong> ${gridDesc}</span>
+              <span><strong>Bay Module:</strong> ${bayDesc}</span>
+              <span><strong>Analyzed:</strong> ${pm.sampleCount} vectors</span>
+            </div>
+          </div>
+        `;
+      }
+
       summaryEl.innerHTML = `
         <div style="font-weight:700;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:6px;">
-          <span class="file-badge-cat" style="font-weight:700;">ANALYSIS</span> Master Plan Intelligence
+          <span class="file-badge-cat" style="font-weight:700;">AI CAD</span> Building Pattern Intelligence
         </div>
         ${ProjectController.smartSiteArea ? `<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:2px;"><strong>Site Area:</strong> ${App.escapeHtml(ProjectController.smartSiteArea)}</div>` : ''}
         ${ProjectController.smartGroundCoverage ? `<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:2px;"><strong>Ground Coverage:</strong> ${App.escapeHtml(ProjectController.smartGroundCoverage)}</div>` : ''}
+        ${patternBadgeHtml}
         <div style="margin-top:4px;font-size:11.5px;">
           Detected <strong>${ProjectController.smartSuggestions.length}</strong> site parcel(s) &amp; zones (${selectedCount} selected).
         </div>
@@ -4044,6 +4078,7 @@
                 <div class="sa-item-meta">
                   <span>@ ${s.xPct.toFixed(0)}%, ${s.yPct.toFixed(0)}%</span>
                   ${s.polygon ? `<span class="file-badge-cat" style="background:var(--accent-soft);color:var(--accent);">${s.vectorSource === 'vector-pdf' ? 'Vector CAD' : (s.vectorSource === 'raster-color' ? 'Color Parcel' : 'Polygon')} (${s.polygon.length} pts)</span>` : '<span class="file-badge-cat">Callout</span>'}
+                  ${s.patternArchetype ? `<span class="file-badge-cat" style="background:rgba(2,132,199,0.1);color:#0284c7;border:1px solid rgba(2,132,199,0.25);">${App.escapeHtml(s.patternArchetype)}</span>` : ''}
                   ${s.area ? `<span class="file-badge-cat">${App.escapeHtml(s.area)}</span>` : ''}
                   ${matchCount > 0 ? `<span class="status-pill status-Approved">${matchCount} file${matchCount > 1 ? 's' : ''}</span>` : ''}
                 </div>

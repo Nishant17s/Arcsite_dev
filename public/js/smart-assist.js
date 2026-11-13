@@ -1416,7 +1416,13 @@
       }
     }
 
-    // 5. Universal Label-First Shape Binding:
+    // 5. Universal Label-First Shape Binding with Building Pattern Engine:
+    let patternEngine = typeof window !== 'undefined' ? window.BuildingPatternEngine : null;
+    if (!patternEngine && typeof require === 'function') {
+      try { patternEngine = require('./building-pattern-engine.js'); } catch (_) {}
+    }
+    const patternModel = patternEngine ? patternEngine.learnPatterns(vectorGeometry, candidateLabels) : null;
+
     // Priority sort: Building / Plot codes (e.g. B01) claim footprints first, then named facilities
     candidateLabels.sort((a, b) => {
       const aCode = isSpaceCode(a.text) ? 1 : 0;
@@ -1560,6 +1566,11 @@
       claimedParcelIds.add(bestParcel.id);
       const title = cand.text.trim();
       const cls = classifyLabel(title);
+      let rectifiedPoly = bestParcel.polygon;
+      if (patternEngine && rectifiedPoly && isBldg) {
+        rectifiedPoly = patternEngine.rectifyPolygon(rectifiedPoly, patternModel);
+      }
+      const archetype = patternEngine ? patternEngine.classifyArchetype(bestParcel.bbox, rectifiedPoly) : 'Standard-Building';
       const cx = Math.round((parseFloat(bestParcel.bbox.x) + parseFloat(bestParcel.bbox.w) / 2) * 100) / 100;
       const cy = Math.round((parseFloat(bestParcel.bbox.y) + parseFloat(bestParcel.bbox.h) / 2) * 100) / 100;
 
@@ -1569,10 +1580,11 @@
         zone_type: cls.zone_type,
         icon: cls.icon,
         shape: 'polygon',
-        polygon: bestParcel.polygon,
-        vectorPolygon: bestParcel.polygon,
+        polygon: rectifiedPoly,
+        vectorPolygon: rectifiedPoly,
         vectorBbox: bestParcel.bbox,
         vectorSource: bestParcel.source || 'vector-pdf',
+        patternArchetype: archetype,
         xPct: cx,
         yPct: cy,
         selected: true,
@@ -1583,6 +1595,7 @@
       siteAreaText,
       groundCoverageText,
       optionText,
+      patternModel,
       labels: labels.slice(0, 40),
       vectorGeometry,
     };

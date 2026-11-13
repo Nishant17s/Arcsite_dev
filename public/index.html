@@ -167,7 +167,7 @@
         <h2 class="proj-title" id="proj-title" contenteditable="false"></h2>
       </div>
       <div class="proj-header-right">
-        <button class="btn btn-ghost btn-sm" id="smart-assist-btn" title="Extract exact labels & areas from PDF Site Plan (M)">
+        <button class="btn btn-ghost btn-sm" id="smart-assist-btn" title="Learn & extract building patterns from Site Plan (M)">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
           <span>Smart Assist</span>
         </button>
@@ -175,7 +175,7 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 18 21 6 21 2 8.5"/></svg>
           <span>Draw Zone</span>
         </button>
-        <button class="btn btn-ghost btn-sm" id="magic-trace-btn" title="Click inside any plot, room, or roof to trace with Vector CAD / SlimSAM AI (T)">
+        <button class="btn btn-ghost btn-sm" id="magic-trace-btn" title="Click inside any building to snap exact architectural footprint (Building Pattern AI) (T)">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg>
           <span>Trace Click</span>
         </button>
@@ -406,7 +406,7 @@
 
         <!-- Magic Trace Floating Bar -->
         <div class="poly-draw-bar" id="magic-trace-bar" hidden>
-          <span id="magic-trace-hint">Click inside any plot, room, or roof to trace with Vector CAD / SlimSAM AI</span>
+          <span id="magic-trace-hint">Building Pattern AI ready — click inside any building or plot to snap exact footprint</span>
           <button type="button" class="btn btn-ghost btn-xs" id="magic-trace-cancel-btn">Cancel</button>
         </div>
         <!-- Presentation Exit Pill -->
@@ -819,6 +819,7 @@
   <script src="/js/dashboard.js"></script>
   <script src="/js/map.js"></script>
   <script src="/js/viewers.js"></script>
+  <script src="/js/building-pattern-engine.js"></script>
   <script src="/js/slimsam-segmenter.js"></script>
   <script src="/js/smart-assist.js"></script>
   <script src="/js/project.js"></script>

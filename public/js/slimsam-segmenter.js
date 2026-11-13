@@ -229,7 +229,14 @@
       best.solidity
     );
     if (!polyResult) return null;
-    polyResult.source = `slimsam-${state.device}`;
+
+    // Architectural regularization: Snap organic boundary to learned CAD grid and orthogonal bay geometry
+    if (window.BuildingPatternEngine && polyResult.polygon && polyResult.polygon.length >= 3) {
+      const patternModel = window.ProjectController?.smartPatternModel || null;
+      polyResult.polygon = window.BuildingPatternEngine.rectifyPolygon(polyResult.polygon, patternModel);
+    }
+
+    polyResult.source = `pattern-cad-ai (${state.device})`;
     polyResult.iouScore = best.score;
     return polyResult;
   }
