@@ -16,20 +16,20 @@ const { UPLOADS_DIR } = require('../config/paths');
 const router = express.Router();
 const DEFAULT_MAP_PATH = path.join(__dirname, '..', '..', 'public', 'assets', 'site-map.svg');
 
-// Multer config for map uploads
+// Multer config for map uploads (supports site-map.png raster and site-map.pdf vector)
 const mapStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(UPLOADS_DIR, req.params.id, 'map');
     fs.mkdirSync(dir, { recursive: true });
-    // Clear previous map files so only the latest map remains
-    for (const existing of fs.readdirSync(dir)) {
-      fs.unlinkSync(path.join(dir, existing));
-    }
     cb(null, dir);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `site-map${ext}`);
+    if (file.fieldname === 'pdf' || ext === '.pdf') {
+      cb(null, 'site-map.pdf');
+    } else {
+      cb(null, `site-map${ext}`);
+    }
   }
 });
 
@@ -38,11 +38,11 @@ const mapUpload = multer({
   limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.tiff', '.tif'];
-    if (imageExts.includes(ext)) {
+    const allowed = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.tiff', '.tif', '.pdf'];
+    if (allowed.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed for site maps'));
+      cb(new Error('Only image or PDF files are allowed for site maps'));
     }
   }
 });
@@ -166,24 +166,25 @@ router.delete('/:id', validateProjectId, requireProjectAccess, (req, res, next) 
   }
 });
 
-// POST /api/projects/:id/upload-map — upload site map image (auto-converts TIFF to PNG)
-router.post('/:id/upload-map', validateProjectId, requireProjectAccess, mapUpload.single('map'), async (req, res, next) => {
+// POST /api/projects/:id/upload-map — upload site map image & optional vector PDF
+router.post('/:id/upload-map', validateProjectId, requireProjectAccess, mapUpload.fields([{ name: 'map', maxCount: 1 }, { name: 'pdf', maxCount: 1 }]), async (req, res, next) => {
   try {
-    if (!req.file) {
+    const mapFile = req.files?.map?.[0] || req.files?.pdf?.[0];
+    if (!mapFile) {
       return res.status(400).json({ success: false, error: 'No map file uploaded' });
     }
 
-    const ext = path.extname(req.file.path).toLowerCase();
+    const ext = path.extname(mapFile.path).toLowerCase();
     if (ext === '.tif' || ext === '.tiff') {
-      const pngPath = path.join(path.dirname(req.file.path), 'site-map.png');
-      await sharp(req.file.path).png().toFile(pngPath);
-      try { fs.unlinkSync(req.file.path); } catch {}
+      const pngPath = path.join(path.dirname(mapFile.path), 'site-map.png');
+      await sharp(mapFile.path).png().toFile(pngPath);
+      try { fs.unlinkSync(mapFile.path); } catch {}
     }
 
     const mapUrl = `/api/projects/${req.params.id}/map`;
     updateProject(req.params.id, { map_path: mapUrl });
 
-    logActivity({ project_id: req.params.id, user_id: req.user.id, action: 'map_uploaded', details: req.file.originalname });
+    logActivity({ project_id: req.params.id, user_id: req.user.id, action: 'map_uploaded', details: mapFile.originalname });
 
     res.json({ success: true, map_path: mapUrl, path: mapUrl });
   } catch (err) {
@@ -199,7 +200,11 @@ router.get('/:id/map', validateProjectId, requireProjectAccess, (req, res, next)
 
     if (fs.existsSync(mapDir)) {
       const files = fs.readdirSync(mapDir).filter(f => !f.startsWith('.'));
-      if (files.length > 0) {
+      // Prefer image files over PDF for the standard <img> tag
+      const imageFiles = files.filter(f => !f.toLowerCase().endsWith('.pdf'));
+      if (imageFiles.length > 0) {
+        mapFilePath = path.join(mapDir, imageFiles[0]);
+      } else if (files.length > 0) {
         mapFilePath = path.join(mapDir, files[0]);
       }
     }
@@ -218,6 +223,35 @@ router.get('/:id/map', validateProjectId, requireProjectAccess, (req, res, next)
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, no-cache');
     res.sendFile(mapFilePath);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/projects/:id/map-pdf — authenticated vector PDF serving for high-DPI crisp zoom
+router.get('/:id/map-pdf', validateProjectId, requireProjectAccess, (req, res, next) => {
+  try {
+    const mapDir = path.join(UPLOADS_DIR, req.params.id, 'map');
+    const pdfPath = path.join(mapDir, 'site-map.pdf');
+    if (fs.existsSync(pdfPath)) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      return res.sendFile(pdfPath);
+    }
+
+    // Fallback: search project files for any Site Plan PDF
+    const files = getFilesByProject(req.params.id);
+    const sitePdf = files.find(f => f.category === 'Site Plan' && /\.pdf$/i.test(f.original_name))
+      || files.find(f => /\.pdf$/i.test(f.original_name));
+    if (sitePdf && sitePdf.file_path && fs.existsSync(sitePdf.file_path)) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      return res.sendFile(sitePdf.file_path);
+    }
+
+    return res.status(404).json({ success: false, error: 'Vector PDF map not found' });
   } catch (err) {
     next(err);
   }

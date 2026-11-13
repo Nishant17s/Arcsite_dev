@@ -180,6 +180,9 @@
       if (window.ProjectController && typeof window.ProjectController.renderPolygons === 'function') {
         window.ProjectController.renderPolygons();
       }
+      if (window.ProjectController && typeof window.ProjectController.onMapZoomChange === 'function') {
+        window.ProjectController.onMapZoomChange(scale);
+      }
     },
   };
 

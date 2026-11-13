@@ -267,6 +267,7 @@
         <div class="map-viewport" id="map-viewport">
           <div class="map-transform" id="map-transform">
             <img class="map-image" id="map-image" alt="Site Map">
+            <canvas class="map-pdf-canvas" id="map-pdf-canvas" hidden></canvas>
             <svg class="polygon-layer" id="polygon-layer" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
             <div class="hotspot-layer" id="hotspot-layer"></div>
           </div>
@@ -381,6 +382,7 @@
           <!-- Variable Pointer / Grip Size Control -->
           <div class="cad-pointer-size-group" title="Adjust corner pointer/grip size (never blows up on zoom)">
             <span class="cad-mini-label">Pointer:</span>
+            <button type="button" class="btn btn-ghost btn-xs cad-ptr-btn" data-ptrsz="3" title="Ultra-fine pointer (3px)">3px</button>
             <button type="button" class="btn btn-ghost btn-xs cad-ptr-btn" data-ptrsz="6" title="Fine pointer (6px)">6px</button>
             <button type="button" class="btn btn-ghost btn-xs cad-ptr-btn active" data-ptrsz="10" title="Standard pointer (10px)">10px</button>
             <button type="button" class="btn btn-ghost btn-xs cad-ptr-btn" data-ptrsz="14" title="Medium pointer (14px)">14px</button>

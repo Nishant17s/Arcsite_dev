@@ -1237,6 +1237,17 @@ button, input, select, textarea {
   border-radius: var(--radius-sm);
 }
 
+.map-pdf-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  border-radius: var(--radius-sm);
+  z-index: 0;
+}
+
 .hotspot-layer {
   position: absolute;
   inset: 0;
@@ -1289,88 +1300,94 @@ button, input, select, textarea {
   box-shadow: none;
 }
 
-.hotspot-badge {
+/* CAD Architectural Callout Tag Styling */
+.hotspot-badge,
+.hotspot-badge.cad-tag {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 96%;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: rgba(15, 23, 42, 0.92);
+  flex-direction: column;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 3px 8px 3px 7px;
+  background: rgba(15, 23, 42, 0.94);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
-  pointer-events: none;
-  transition: all 0.15s ease;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-left: 3px solid #38BDF8;
+  border-radius: 2px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  cursor: pointer;
   white-space: nowrap;
+  user-select: none;
+  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+  z-index: 2;
 }
+
+.hotspot-badge.cad-tag-building,
+.hotspot-badge.cad-tag-bldg {
+  border-left-color: #38BDF8;
+}
+.hotspot-badge.cad-tag-warehouse,
+.hotspot-badge.cad-tag-wh {
+  border-left-color: #F59E0B;
+}
+.hotspot-badge.cad-tag-landscape,
+.hotspot-badge.cad-tag-land {
+  border-left-color: #10B981;
+}
+.hotspot-badge.cad-tag-road {
+  border-left-color: #94A3B8;
+}
+.hotspot-badge.cad-tag-utility,
+.hotspot-badge.cad-tag-util {
+  border-left-color: #06B6D4;
+}
+.hotspot-badge.cad-tag-transit,
+.hotspot-badge.cad-tag-metro {
+  border-left-color: #A855F7;
+}
+
+.cad-tag-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cad-tag-id {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #F8FAFC;
+  text-transform: uppercase;
+  line-height: 1.25;
+}
+
+.cad-tag-meta {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  margin-top: 2px;
+  padding-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.cad-tag-area {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  color: #38BDF8;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
 .hotspot:hover .hotspot-badge,
-.hotspot.active .hotspot-badge {
+.hotspot.active .hotspot-badge,
+.hotspot:hover .hotspot-badge.cad-tag,
+.hotspot.active .hotspot-badge.cad-tag {
   background: rgba(15, 23, 42, 0.98);
   border-color: #38BDF8;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35), 0 0 0 1px #38BDF8;
-}
-.hotspot-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: #38BDF8;
-  box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
-}
-.hotspot-dot.zone-building,
-.hotspot-dot.zone-bldg {
-  background: #38BDF8;
-  box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
-}
-.hotspot-dot.zone-warehouse,
-.hotspot-dot.zone-wh {
-  background: #F59E0B;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
-}
-.hotspot-dot.zone-landscape,
-.hotspot-dot.zone-land {
-  background: #10B981;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
-}
-.hotspot-dot.zone-utility,
-.hotspot-dot.zone-util {
-  background: #06B6D4;
-  box-shadow: 0 0 6px rgba(6, 182, 212, 0.6);
-}
-.hotspot-dot.zone-transit,
-.hotspot-dot.zone-metro {
-  background: #A855F7;
-  box-shadow: 0 0 6px rgba(168, 85, 247, 0.6);
-}
-.hotspot-dot.zone-road {
-  background: #94A3B8;
-  box-shadow: 0 0 6px rgba(148, 163, 184, 0.6);
-}
-.hotspot-dot.zone-civic {
-  background: #EC4899;
-  box-shadow: 0 0 6px rgba(236, 72, 153, 0.6);
-}
-.hotspot-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  color: #F8FAFC;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  letter-spacing: 0.02em;
-}
-.hotspot-area {
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 700;
-  color: #38BDF8;
-  white-space: nowrap;
-  flex-shrink: 0;
-  background: rgba(56, 189, 248, 0.12);
-  padding: 1px 4px;
-  border-radius: 3px;
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-left-color: #38BDF8;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(56, 189, 248, 0.4);
 }
 
 .asset-item-badge {
@@ -2253,7 +2270,7 @@ button, input, select, textarea {
 .cad-grip-vertex {
   fill: #FFFFFF !important;
   stroke: #0284C7 !important;
-  stroke-width: 2px !important;
+  stroke-width: 1px !important;
   vector-effect: non-scaling-stroke;
   pointer-events: auto !important;
   cursor: grab !important;
@@ -2265,7 +2282,7 @@ button, input, select, textarea {
   fill: #38BDF8 !important;
   stroke: #FFFFFF !important;
   cursor: grab !important;
-  filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.8));
+  filter: drop-shadow(0 0 3px rgba(56, 189, 248, 0.8));
 }
 .poly-vertex-handle.active,
 .poly-vertex-handle:active,
@@ -2275,7 +2292,7 @@ button, input, select, textarea {
   fill: #2563EB !important;
   stroke: #FFFFFF !important;
   cursor: grabbing !important;
-  filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.9));
+  filter: drop-shadow(0 0 5px rgba(37, 99, 235, 0.9));
 }
 
 .poly-edge-handle,
@@ -2283,7 +2300,7 @@ button, input, select, textarea {
 .cad-grip-edge {
   fill: #0F172A !important;
   stroke: #0284C7 !important;
-  stroke-width: 1.8px !important;
+  stroke-width: 1.2px !important;
   vector-effect: non-scaling-stroke;
   pointer-events: auto !important;
   cursor: move !important;
@@ -2296,7 +2313,7 @@ button, input, select, textarea {
   fill: #0284C7 !important;
   stroke: #FFFFFF !important;
   cursor: move !important;
-  filter: drop-shadow(0 0 4px rgba(2, 132, 199, 0.8));
+  filter: drop-shadow(0 0 3px rgba(2, 132, 199, 0.8));
 }
 .poly-edge-handle.active,
 .poly-edge-handle:active,
@@ -2306,13 +2323,13 @@ button, input, select, textarea {
   fill: #2563EB !important;
   stroke: #FFFFFF !important;
   cursor: grabbing !important;
-  filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.9));
+  filter: drop-shadow(0 0 5px rgba(37, 99, 235, 0.9));
 }
 
 .poly-draft-placed-shape {
   fill: rgba(2, 132, 199, 0.16) !important;
   stroke: #0284C7 !important;
-  stroke-width: 2px !important;
+  stroke-width: 1.8px !important;
   vector-effect: non-scaling-stroke;
   pointer-events: auto !important;
   cursor: move !important;
@@ -2351,9 +2368,9 @@ button, input, select, textarea {
 }
 .cad-pickbox {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  width: var(--cad-pointer-sz, 10px);
+  height: var(--cad-pointer-sz, 10px);
+  border: 1px solid rgba(255, 255, 255, 0.95);
   transform: translate(-50%, -50%);
   pointer-events: none;
   background: rgba(15, 23, 42, 0.25);
@@ -2788,31 +2805,33 @@ button, input, select, textarea {
   font-size: 10.5px;
   color: var(--text-muted);
 }
-.sa-ghost-pin {
+.sa-ghost-pin,
+.sa-ghost-pin.cad-tag {
   position: absolute;
   transform: translate(-50%, -50%);
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: rgba(15, 23, 42, 0.92);
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 8px 3px 7px;
+  border-radius: 2px;
+  background: rgba(15, 23, 42, 0.94);
   backdrop-filter: blur(8px);
   color: #F8FAFC;
-  border: 1px dashed rgba(56, 189, 248, 0.5);
-  font-size: 10.5px;
-  font-weight: 700;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+  border: 1px dashed rgba(56, 189, 248, 0.6);
+  border-left: 3px solid #38BDF8;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   pointer-events: auto;
   cursor: pointer;
   white-space: nowrap;
   z-index: 3;
 }
-.sa-ghost-pin:hover {
+.sa-ghost-pin:hover,
+.sa-ghost-pin.cad-tag:hover {
   background: rgba(15, 23, 42, 0.98);
   border-color: #38BDF8;
   border-style: solid;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+  border-left-color: #38BDF8;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(56, 189, 248, 0.4);
 }
 }
 

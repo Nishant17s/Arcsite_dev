@@ -192,8 +192,9 @@
       ProjectController.bindMagicTrace();
       try {
         const savedPtr = parseInt(localStorage.getItem('cad_pointer_size'), 10);
-        if (savedPtr && [6, 10, 14, 18].includes(savedPtr)) {
+        if (savedPtr && [3, 6, 10, 14, 18].includes(savedPtr)) {
           ProjectController.pointerSize = savedPtr;
+          document.documentElement.style.setProperty('--cad-pointer-sz', `${savedPtr}px`);
           document.querySelectorAll('.cad-ptr-btn').forEach((btn) => {
             btn.classList.toggle('active', parseInt(btn.dataset.ptrsz, 10) === savedPtr);
           });
@@ -270,10 +271,126 @@
           img.onerror = null;
           img.src = fallback;
         };
+        img.onload = () => {
+          if (ProjectController._activePdfPage) {
+            ProjectController.renderVectorPdfAtZoom();
+          }
+        };
         img.src = `/api/projects/${encodeURIComponent(ProjectController.project.id)}/map?t=${Date.now()}`;
       } else {
         img.onerror = null;
         img.src = fallback;
+      }
+      ProjectController.initVectorPdfMap();
+    },
+
+    async initVectorPdfMap() {
+      if (!ProjectController.project) return;
+      const canvas = document.getElementById('map-pdf-canvas');
+      ProjectController._activePdfPage = null;
+      ProjectController._lastPdfRenderScale = null;
+
+      try {
+        const pdfUrl = `/api/projects/${encodeURIComponent(ProjectController.project.id)}/map-pdf?t=${Date.now()}`;
+        const headCheck = await fetch(pdfUrl, { method: 'HEAD', credentials: 'same-origin' });
+        if (!headCheck.ok) {
+          if (canvas) {
+            canvas.hidden = true;
+            canvas.style.display = 'none';
+          }
+          return;
+        }
+
+        const pdfjsLib = await window.ViewerManager.loadPdfJs();
+        const res = await fetch(pdfUrl, { credentials: 'same-origin' });
+        if (!res.ok) {
+          if (canvas) {
+            canvas.hidden = true;
+            canvas.style.display = 'none';
+          }
+          return;
+        }
+        const buf = await res.arrayBuffer();
+        const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+        ProjectController._activePdfDoc = pdfDoc;
+        ProjectController._activePdfPage = await pdfDoc.getPage(1);
+        await ProjectController.renderVectorPdfAtZoom();
+      } catch (err) {
+        if (canvas) {
+          canvas.hidden = true;
+          canvas.style.display = 'none';
+        }
+      }
+    },
+
+    onMapZoomChange(scale) {
+      if (!ProjectController._activePdfPage) return;
+      if (ProjectController._pdfZoomDebounce) {
+        clearTimeout(ProjectController._pdfZoomDebounce);
+      }
+      ProjectController._pdfZoomDebounce = setTimeout(() => {
+        ProjectController.renderVectorPdfAtZoom();
+      }, 75);
+    },
+
+    async renderVectorPdfAtZoom() {
+      const page = ProjectController._activePdfPage;
+      const canvas = document.getElementById('map-pdf-canvas');
+      const mapImg = document.getElementById('map-image');
+      if (!page || !canvas || !mapImg) return;
+
+      const baseW = mapImg.naturalWidth || mapImg.clientWidth || 1000;
+      const baseH = mapImg.naturalHeight || mapImg.clientHeight || 1000;
+      if (baseW <= 0 || baseH <= 0) return;
+
+      const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+      const currentScale = Math.max(1.0, window.MapController?.state?.scale || 1.0);
+      const effectiveScale = currentScale * dpr;
+
+      if (ProjectController._lastPdfRenderScale && Math.abs(ProjectController._lastPdfRenderScale - effectiveScale) < 0.05) {
+        return;
+      }
+
+      const baseVp = page.getViewport({ scale: 1 });
+      const targetW = Math.min(7168, Math.max(1600, Math.round(baseW * effectiveScale)));
+      const renderScale = targetW / baseVp.width;
+      const viewport = page.getViewport({ scale: renderScale });
+
+      if (ProjectController._pdfRenderTask) {
+        try {
+          ProjectController._pdfRenderTask.cancel();
+        } catch (_) {}
+      }
+
+      const offscreen = document.createElement('canvas');
+      offscreen.width = Math.round(viewport.width);
+      offscreen.height = Math.round(viewport.height);
+      const offCtx = offscreen.getContext('2d');
+      offCtx.fillStyle = '#FFFFFF';
+      offCtx.fillRect(0, 0, offscreen.width, offscreen.height);
+
+      const renderContext = {
+        canvasContext: offCtx,
+        viewport,
+      };
+
+      try {
+        ProjectController._pdfRenderTask = page.render(renderContext);
+        await ProjectController._pdfRenderTask.promise;
+        ProjectController._pdfRenderTask = null;
+
+        canvas.width = offscreen.width;
+        canvas.height = offscreen.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(offscreen, 0, 0);
+
+        canvas.hidden = false;
+        canvas.style.display = 'block';
+        ProjectController._lastPdfRenderScale = effectiveScale;
+      } catch (err) {
+        if (err?.name !== 'RenderingCancelledException') {
+          console.warn('[PDF Vector Engine] Render warning:', err);
+        }
       }
     },
 
@@ -528,8 +645,8 @@
       const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
       const page = await pdfDoc.getPage(1);
       const baseVp = page.getViewport({ scale: 1 });
-      const targetMax = 3200;
-      const scale = Math.min(3.0, Math.max(1.5, targetMax / Math.max(baseVp.width, baseVp.height)));
+      const targetMax = 5120;
+      const scale = Math.min(4.0, Math.max(2.0, targetMax / Math.max(baseVp.width, baseVp.height)));
       const viewport = page.getViewport({ scale });
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(viewport.width);
@@ -703,18 +820,24 @@
       const rect = transformEl ? transformEl.getBoundingClientRect() : null;
       const w = (rect && rect.width > 0) ? rect.width : 1000;
       const h = (rect && rect.height > 0) ? rect.height : 1000;
-      const gw = Math.max(0.08, (szPx / w) * 100);
-      const gh = Math.max(0.08, (szPx / h) * 100);
+      const gw = Math.max(0.01, (szPx / w) * 100);
+      const gh = Math.max(0.01, (szPx / h) * 100);
       return { gw, gh, gwHalf: gw / 2, ghHalf: gh / 2 };
     },
 
     setPointerSize(sz) {
       const num = parseInt(sz, 10);
-      if (![6, 10, 14, 18].includes(num)) return;
+      if (![3, 6, 10, 14, 18].includes(num)) return;
       ProjectController.pointerSize = num;
       try {
         localStorage.setItem('cad_pointer_size', String(num));
       } catch (_) {}
+      document.documentElement.style.setProperty('--cad-pointer-sz', `${num}px`);
+      const pickbox = document.getElementById('cad-pickbox');
+      if (pickbox) {
+        pickbox.style.width = `${num}px`;
+        pickbox.style.height = `${num}px`;
+      }
       document.querySelectorAll('.cad-ptr-btn').forEach((btn) => {
         btn.classList.toggle('active', parseInt(btn.dataset.ptrsz, 10) === num);
       });
@@ -1418,9 +1541,9 @@
 
         const titleText = a.title || '';
         const areaText = a.area || '';
-        const badgeCharCount = titleText.length + (areaText ? areaText.length + 3 : 0);
-        const badgeW = Math.max(8.0, Math.min(22.0, badgeCharCount * 0.65 + 4.5));
-        const badgeH = 3.8;
+        const badgeCharCount = Math.max(titleText.length, areaText ? areaText.length : 0);
+        const badgeW = Math.max(5.5, Math.min(16.0, badgeCharCount * 0.52 + 2.8));
+        const badgeH = areaText ? 3.4 : 2.2;
         const halfW = badgeW / 2;
         const halfH = badgeH / 2;
 
@@ -1485,7 +1608,9 @@
           const activeClass = a.id === ProjectController.selectedAssetId ? ' active' : '';
           const hasPoly = Array.isArray(a.polygon) && a.polygon.length >= 3;
           const shape = hasPoly ? 'polygon' : (a.shape || 'rect');
-          const areaTag = a.area ? `<span class="hotspot-area">${App.escapeHtml(a.area)}</span>` : '';
+          const areaTag = a.area
+            ? `<div class="cad-tag-meta"><span class="cad-tag-area">${App.escapeHtml(a.area)}</span></div>`
+            : '';
           const layout = badgeLayouts[a.id] || { relX: 50, relY: 50 };
           const badgeStyle = ` style="left:${layout.relX.toFixed(1)}%;top:${layout.relY.toFixed(1)}%;"`;
           const zoneClass = (a.zone_type || a.icon || 'bldg').toLowerCase().replace(/[^a-z0-9_-]/g, '');
@@ -1495,10 +1620,11 @@
                  data-asset-id="${App.escapeHtml(a.id)}"
                  data-shape="${App.escapeHtml(shape)}"
                  style="left:${App.escapeHtml(a.x)};top:${App.escapeHtml(a.y)};width:${App.escapeHtml(a.w)};height:${App.escapeHtml(a.h)};">
-              <div class="hotspot-badge"${badgeStyle}>
-                <span class="hotspot-dot zone-${App.escapeHtml(zoneClass)}"></span>
-                <span class="hotspot-label">${App.escapeHtml(a.title)}</span>
-                ${areaTag}
+              <div class="hotspot-badge cad-tag cad-tag-${App.escapeHtml(zoneClass)}"${badgeStyle}>
+                <div class="cad-tag-inner">
+                  <div class="cad-tag-id">${App.escapeHtml(a.title)}</div>
+                  ${areaTag}
+                </div>
               </div>
               <button type="button" class="hotspot-del" data-del-hotspot="${App.escapeHtml(a.id)}" title="Delete zone from map">&times;</button>
               <span class="resize-handle nw" data-handle="nw"></span>
@@ -1516,11 +1642,15 @@
           .filter((s) => s.selected)
           .map((s) => {
             const zClass = (s.zone_type || 'bldg').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+            const areaTag = s.area
+              ? `<div class="cad-tag-meta"><span class="cad-tag-area">${App.escapeHtml(s.area)}</span></div>`
+              : '';
             return `
-            <div class="sa-ghost-pin" data-sa-pin="${s.idx}" style="left:${s.xPct}%;top:${s.yPct}%;">
-              <span class="hotspot-dot zone-${App.escapeHtml(zClass)}"></span>
-              <span class="hotspot-label">${App.escapeHtml(s.text)}</span>
-              ${s.area ? `<span class="hotspot-area">${App.escapeHtml(s.area)}</span>` : ''}
+            <div class="sa-ghost-pin cad-tag cad-tag-${App.escapeHtml(zClass)}" data-sa-pin="${s.idx}" style="left:${s.xPct}%;top:${s.yPct}%;">
+              <div class="cad-tag-inner">
+                <div class="cad-tag-id">${App.escapeHtml(s.text)}</div>
+                ${areaTag}
+              </div>
             </div>`;
           })
           .join('');
@@ -2429,13 +2559,18 @@
 
       try {
         let mapToUpload = file;
+        let pdfToUpload = null;
         if (/\.pdf$/i.test(file.name)) {
-          if (statusEl) statusEl.textContent = 'Rendering PDF Site Plan page 1 at high resolution…';
+          if (statusEl) statusEl.textContent = 'Rendering PDF Site Plan at 5120px ultra-high definition…';
           mapToUpload = await ProjectController.renderPdfFirstPageToPng(file);
+          pdfToUpload = file;
         }
 
         const fd = new FormData();
         fd.append('map', mapToUpload);
+        if (pdfToUpload) {
+          fd.append('pdf', pdfToUpload);
+        }
 
         const res = await App.api(
           `/api/projects/${encodeURIComponent(ProjectController.project.id)}/upload-map`,
@@ -2806,6 +2941,9 @@
       if (hLine) hLine.style.top = `${finalVy}px`;
       if (vLine) vLine.style.left = `${finalVx}px`;
       if (pickbox) {
+        const ptrSz = ProjectController.pointerSize || 10;
+        pickbox.style.width = `${ptrSz}px`;
+        pickbox.style.height = `${ptrSz}px`;
         pickbox.style.left = `${finalVx}px`;
         pickbox.style.top = `${finalVy}px`;
       }
