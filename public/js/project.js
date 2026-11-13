@@ -1615,11 +1615,16 @@
           const badgeStyle = ` style="left:${layout.relX.toFixed(1)}%;top:${layout.relY.toFixed(1)}%;"`;
           const zoneClass = (a.zone_type || a.icon || 'bldg').toLowerCase().replace(/[^a-z0-9_-]/g, '');
 
+          const leftVal = String(a.x || 0).endsWith('%') ? a.x : `${parseFloat(a.x) || 0}%`;
+          const topVal = String(a.y || 0).endsWith('%') ? a.y : `${parseFloat(a.y) || 0}%`;
+          const widthVal = String(a.w || 10).endsWith('%') ? a.w : `${parseFloat(a.w) || 10}%`;
+          const heightVal = String(a.h || 10).endsWith('%') ? a.h : `${parseFloat(a.h) || 10}%`;
+
           return `
             <div class="hotspot${activeClass}"
                  data-asset-id="${App.escapeHtml(a.id)}"
                  data-shape="${App.escapeHtml(shape)}"
-                 style="left:${App.escapeHtml(a.x)};top:${App.escapeHtml(a.y)};width:${App.escapeHtml(a.w)};height:${App.escapeHtml(a.h)};">
+                 style="left:${App.escapeHtml(leftVal)};top:${App.escapeHtml(topVal)};width:${App.escapeHtml(widthVal)};height:${App.escapeHtml(heightVal)};">
               <div class="hotspot-badge cad-tag cad-tag-${App.escapeHtml(zoneClass)}"${badgeStyle}>
                 <div class="cad-tag-inner">
                   <div class="cad-tag-id">${App.escapeHtml(a.title)}</div>
@@ -4079,15 +4084,19 @@
 
       const payload = chosen.map((s) => {
         if (Array.isArray(s.polygon) && s.polygon.length >= 3 && s.bbox) {
+          const bx = parseFloat(s.bbox.x);
+          const by = parseFloat(s.bbox.y);
+          const bw = parseFloat(s.bbox.w);
+          const bh = parseFloat(s.bbox.h);
           return {
             title: s.text.trim(),
             icon: s.icon,
             shape: 'polygon',
             polygon: s.polygon,
-            x: s.bbox.x,
-            y: s.bbox.y,
-            w: s.bbox.w,
-            h: s.bbox.h,
+            x: `${bx.toFixed(1)}%`,
+            y: `${by.toFixed(1)}%`,
+            w: `${Math.max(2.5, bw).toFixed(1)}%`,
+            h: `${Math.max(2.5, bh).toFixed(1)}%`,
             area: s.area || '',
             status: 'WIP',
             matched_file_ids: s.matchedFiles.map((f) => f.id),

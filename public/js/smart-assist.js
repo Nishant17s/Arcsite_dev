@@ -202,6 +202,83 @@
      - Preserves exact multi-vertex L-shapes, stepped footprints, angled bays
      - Keeps separate buildings across roads and setbacks distinct
      ======================================================================== */
+  function cleanCollinear(pts) {
+    if (!Array.isArray(pts) || pts.length <= 3) return pts || [];
+    const res = [];
+    const n = pts.length;
+    for (let i = 0; i < n; i++) {
+      const prev = pts[(i - 1 + n) % n];
+      const cur = pts[i];
+      const next = pts[(i + 1) % n];
+      const cross = (cur[0] - prev[0]) * (next[1] - prev[1]) - (cur[1] - prev[1]) * (next[0] - prev[0]);
+      if (Math.abs(cross) > 1e-4) {
+        res.push(cur);
+      }
+    }
+    return res.length >= 3 ? res : pts;
+  }
+
+  function mergeTouchingRects(rA, rB) {
+    const ax1 = Math.min(rA.x, rA.x + rA.w), ax2 = Math.max(rA.x, rA.x + rA.w);
+    const ay1 = Math.min(rA.y, rA.y + rA.h), ay2 = Math.max(rA.y, rA.y + rA.h);
+    const bx1 = Math.min(rB.x, rB.x + rB.w), bx2 = Math.max(rB.x, rB.x + rB.w);
+    const by1 = Math.min(rB.y, rB.y + rB.h), by2 = Math.max(rB.y, rB.y + rB.h);
+
+    // 1. Vertical touch (one on top, one on bottom)
+    const aOnTop = Math.abs(ay2 - by1) <= 0.35;
+    const bOnTop = Math.abs(by2 - ay1) <= 0.35;
+
+    if (aOnTop || bOnTop) {
+      const top = aOnTop ? { x1: ax1, x2: ax2, y1: ay1, y2: ay2 } : { x1: bx1, x2: bx2, y1: by1, y2: by2 };
+      const bot = aOnTop ? { x1: bx1, x2: bx2, y1: by1, y2: by2 } : { x1: ax1, x2: ax2, y1: ay1, y2: ay2 };
+      const splitY = (top.y2 + bot.y1) / 2;
+
+      const raw = [
+        [top.x1, top.y1],
+        [top.x2, top.y1],
+      ];
+      if (Math.abs(top.x2 - bot.x2) > 0.4) {
+        raw.push([top.x2, splitY]);
+        raw.push([bot.x2, splitY]);
+      }
+      raw.push([bot.x2, bot.y2]);
+      raw.push([bot.x1, bot.y2]);
+      if (Math.abs(top.x1 - bot.x1) > 0.4) {
+        raw.push([bot.x1, splitY]);
+        raw.push([top.x1, splitY]);
+      }
+      return cleanCollinear(raw);
+    }
+
+    // 2. Horizontal touch (one on left, one on right)
+    const aOnLeft = Math.abs(ax2 - bx1) <= 0.35;
+    const bOnLeft = Math.abs(bx2 - ax1) <= 0.35;
+
+    if (aOnLeft || bOnLeft) {
+      const left = aOnLeft ? { x1: ax1, x2: ax2, y1: ay1, y2: ay2 } : { x1: bx1, x2: bx2, y1: by1, y2: by2 };
+      const right = aOnLeft ? { x1: bx1, x2: bx2, y1: by1, y2: by2 } : { x1: ax1, x2: ax2, y1: ay1, y2: ay2 };
+      const splitX = (left.x2 + right.x1) / 2;
+
+      const raw = [
+        [left.x1, left.y1],
+      ];
+      if (Math.abs(left.y1 - right.y1) > 0.4) {
+        raw.push([splitX, left.y1]);
+        raw.push([splitX, right.y1]);
+      }
+      raw.push([right.x2, right.y1]);
+      raw.push([right.x2, right.y2]);
+      if (Math.abs(left.y2 - right.y2) > 0.4) {
+        raw.push([splitX, right.y2]);
+        raw.push([splitX, left.y2]);
+      }
+      raw.push([left.x1, left.y2]);
+      return cleanCollinear(raw);
+    }
+
+    return null;
+  }
+
   function clusterBuildingPolys(polys) {
     if (!Array.isArray(polys) || polys.length <= 1) return polys || [];
 
@@ -336,6 +413,63 @@
       afterTriMerge.push(b1);
     }
 
+    // 2. Merge touching adjacent warehouse parcels (handles L-shaped B01, multi-bay wings)
+    const largeParcels = afterTriMerge.filter((p) => {
+      const bw = parseFloat(p.bbox?.w || 0);
+      const bh = parseFloat(p.bbox?.h || 0);
+      return p.area >= 10 && bw >= 4.0 && bh >= 1.5;
+    });
+
+    const adjacentMerged = [];
+    for (let i = 0; i < largeParcels.length; i++) {
+      for (let j = i + 1; j < largeParcels.length; j++) {
+        const p1 = largeParcels[i];
+        const p2 = largeParcels[j];
+
+        const r1 = {
+          x: parseFloat(p1.bbox.x),
+          y: parseFloat(p1.bbox.y),
+          w: parseFloat(p1.bbox.w),
+          h: parseFloat(p1.bbox.h),
+        };
+        const r2 = {
+          x: parseFloat(p2.bbox.x),
+          y: parseFloat(p2.bbox.y),
+          w: parseFloat(p2.bbox.w),
+          h: parseFloat(p2.bbox.h),
+        };
+
+        const steppedPoly = mergeTouchingRects(r1, r2);
+        if (steppedPoly && steppedPoly.length >= 4) {
+          const minX = Math.min(r1.x, r2.x);
+          const maxX = Math.max(r1.x + r1.w, r2.x + r2.w);
+          const minY = Math.min(r1.y, r2.y);
+          const maxY = Math.max(r1.y + r1.h, r2.y + r2.h);
+          const w = maxX - minX;
+          const h = maxY - minY;
+
+          if (w <= 85 && h <= 55) {
+            adjacentMerged.push({
+              polygon: steppedPoly,
+              bbox: {
+                x: minX.toFixed(1) + '%',
+                y: minY.toFixed(1) + '%',
+                w: Math.max(2.5, w).toFixed(1) + '%',
+                h: Math.max(2.5, h).toFixed(1) + '%',
+              },
+              area: (p1.area || 0) + (p2.area || 0),
+              solidity: 1.0,
+              aspect: Math.max(w / Math.max(0.01, h), h / Math.max(0.01, w)),
+              category: 'building',
+              fillColor: p1.fillColor || p2.fillColor || null,
+              source: 'vector-pdf',
+              isMerged: true,
+            });
+          }
+        }
+      }
+    }
+
     const isContained = (pSmall, pLarge) => {
       if (pSmall.area >= pLarge.area * 0.85) return false;
       const bS = pSmall.bbox;
@@ -351,13 +485,14 @@
       return sMinX >= lMinX && sMaxX <= lMaxX && sMinY >= lMinY && sMaxY <= lMaxY;
     };
 
-    // 2. Deduplicate near-identical polygons (fill + stroke pairs)
+    // 3. Deduplicate near-identical polygons (fill + stroke pairs)
     const dedupedBuildings = [];
-    for (const b of afterTriMerge) {
+    const pool = [...adjacentMerged, ...afterTriMerge];
+    for (const b of pool) {
       const dupeIdx = dedupedBuildings.findIndex((existing) => bboxIoU(existing, b) > 0.80);
       if (dupeIdx >= 0) {
         const existing = dedupedBuildings[dupeIdx];
-        if ((b.polygon?.length || 0) > (existing.polygon?.length || 0) || (b.fillColor && !existing.fillColor)) {
+        if ((b.polygon?.length || 0) > (existing.polygon?.length || 0) || (b.fillColor && !existing.fillColor) || b.isMerged) {
           dedupedBuildings[dupeIdx] = b;
         }
       } else {
@@ -365,7 +500,7 @@
       }
     }
 
-    // 3. Remove interior sub-patches (skylights, internal hatch quads)
+    // 4. Remove interior sub-patches (skylights, internal hatch quads)
     const filteredBuildings = dedupedBuildings.filter((b, idx) => {
       for (let j = 0; j < dedupedBuildings.length; j++) {
         if (idx === j) continue;
@@ -769,62 +904,33 @@
         // Modern PDF.js (v3/v4): args[0] is opcode number, args[1] is array of Float32Array subpaths
         if (Array.isArray(coordsOrSubpaths) && coordsOrSubpaths.length > 0 && coordsOrSubpaths[0]?.buffer) {
           const opCode = subOpsOrDrawOp;
-          const isClosedOp = (opCode >= 21 && opCode <= 27);
-          const isFill = (opCode === OPS.fill || opCode === OPS.eoFill || opCode === OPS.fillStroke || opCode === OPS.eoFillStroke || opCode === OPS.closeFillStroke || opCode === OPS.closeEOFillStroke);
+          const isClosedOp = (opCode === OPS.closeFillStroke || opCode === OPS.closeStroke || opCode === OPS.fill || opCode === OPS.eoFill || opCode === OPS.fillStroke);
+          const isFill = (opCode === OPS.fill || opCode === OPS.eoFill || opCode === OPS.fillStroke || opCode === OPS.closeFillStroke);
 
           for (const arr of coordsOrSubpaths) {
-            const callSubpaths = [];
             let cur = [];
+            let curClosed = isClosedOp;
             for (let j = 0; j < arr.length; ) {
               const cmd = arr[j++];
-              if (cmd === 0) { // DrawOPS.moveTo (2 floats)
-                if (cur.length >= 2) pendingBatch.push({ pts: cur, closed: false, isGray: strokeIsGray, fillColor: currentFillColor });
-                if (cur.length >= 3) callSubpaths.push([...cur]);
+              if (cmd === 0) { // moveTo: 2 floats
+                if (cur.length >= 2) pendingBatch.push({ pts: cur, closed: curClosed, isGray: strokeIsGray, fillColor: currentFillColor });
                 cur = [toPct(arr[j++], arr[j++])];
-              } else if (cmd === 1) { // DrawOPS.lineTo (2 floats)
+                curClosed = isClosedOp;
+              } else if (cmd === 1) { // lineTo: 2 floats
                 cur.push(toPct(arr[j++], arr[j++]));
-              } else if (cmd === 2) { // DrawOPS.curveTo (6 floats)
+              } else if (cmd === 2) { // curveTo: 6 floats
                 j += 4;
                 cur.push(toPct(arr[j++], arr[j++]));
-              } else if (cmd === 3) { // DrawOPS.quadraticCurveTo (4 floats)
+              } else if (cmd === 3) { // quadraticCurveTo: 4 floats
                 j += 2;
                 cur.push(toPct(arr[j++], arr[j++]));
-              } else if (cmd === 4) { // DrawOPS.closePath (0 floats)
+              } else if (cmd === 4) { // closePath: 0 floats
+                curClosed = true;
                 if (cur.length >= 2) pendingBatch.push({ pts: cur, closed: true, isGray: strokeIsGray, fillColor: currentFillColor });
-                if (cur.length >= 3) callSubpaths.push([...cur]);
                 cur = [];
               }
             }
-            if (cur.length >= 2) pendingBatch.push({ pts: cur, closed: isClosedOp, isGray: strokeIsGray, fillColor: currentFillColor });
-            if (cur.length >= 3) callSubpaths.push([...cur]);
-
-            // If shape is filled and composed of multi-triangle meshes (e.g. CAD warehouses), register unified hull
-            if (callSubpaths.length >= 2 && isFill) {
-              let minX = 100, maxX = 0, minY = 100, maxY = 0;
-              const allPts = callSubpaths.flat();
-              for (const [x, y] of allPts) {
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-                if (y < minY) minY = y;
-                if (y > maxY) maxY = y;
-              }
-              const w = maxX - minX;
-              const h = maxY - minY;
-              const aspect = Math.max(w / Math.max(0.01, h), h / Math.max(0.01, w));
-              if (w < 85 && h < 85 && w >= 0.5 && h >= 0.5 && aspect <= 8.0) {
-                pendingBatch.push({
-                  pts: [
-                    [minX, minY],
-                    [maxX, minY],
-                    [maxX, maxY],
-                    [minX, maxY]
-                  ],
-                  closed: true,
-                  isGray: strokeIsGray,
-                  fillColor: currentFillColor
-                });
-              }
-            }
+            if (cur.length >= 2) pendingBatch.push({ pts: cur, closed: curClosed, isGray: strokeIsGray, fillColor: currentFillColor });
           }
           flushPendingBatch(isClosedOp, isFill);
           return;
@@ -1018,13 +1124,13 @@
         const maxDistY = isLarge ? 20 : 6;
         let topY = -Infinity, bottomY = Infinity;
         let leftX = -Infinity, rightX = Infinity;
+        let minSpanX = Infinity, maxSpanX = -Infinity;
 
         for (const [p1, p2] of wallSegs) {
           const minX = Math.min(p1[0], p2[0]), maxX = Math.max(p1[0], p2[0]);
           const minY = Math.min(p1[1], p2[1]), maxY = Math.max(p1[1], p2[1]);
           const dx = maxX - minX;
           const dy = maxY - minY;
-          const midX = (minX + maxX) / 2;
           const midY = (minY + maxY) / 2;
 
           if (dx >= 1.5 && dy <= 0.6) {
@@ -1035,10 +1141,15 @@
               if (midY >= candY && midY < candY + maxDistY) {
                 if (midY < bottomY) bottomY = midY;
               }
+              if (dx >= 6.0) {
+                if (minX < minSpanX) minSpanX = minX;
+                if (maxX > maxSpanX) maxSpanX = maxX;
+              }
             }
           }
 
           if (dy >= 1.5 && dx <= 0.6) {
+            const midX = (minX + maxX) / 2;
             if (candY >= minY - 2.5 && candY <= maxY + 2.5) {
               if (midX <= candX && midX > candX - maxDistX) {
                 if (midX > leftX) leftX = midX;
@@ -1048,6 +1159,11 @@
               }
             }
           }
+        }
+
+        if (isLarge && minSpanX !== Infinity && maxSpanX !== -Infinity && (maxSpanX - minSpanX) >= 8.0) {
+          if (minSpanX < leftX || leftX === -Infinity) leftX = minSpanX;
+          if (maxSpanX > rightX || rightX === Infinity) rightX = maxSpanX;
         }
 
         if (topY !== -Infinity && bottomY !== Infinity && leftX !== -Infinity && rightX !== Infinity) {
@@ -1107,6 +1223,11 @@
     if (!pdfjsLib && typeof window !== 'undefined' && window.ViewerManager) {
       pdfjsLib = await window.ViewerManager.loadPdfJs();
     }
+    if (!pdfjsLib && typeof require === 'function') {
+      try {
+        pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      } catch (_) {}
+    }
     if (!pdfjsLib) throw new Error('PDF.js library not available');
     const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     const page = await pdfDoc.getPage(1);
@@ -1146,14 +1267,12 @@
     const lines = [];
     for (const item of rawItems) {
       const prev = lines[lines.length - 1];
-      const dx = prev ? item.xPct - prev.maxX : 0;
-      const isSameLine = prev && Math.abs(prev.yPct - item.yPct) <= 0.65 && dx >= -0.5 && dx <= 2.5;
-      const wouldMergeDistinctSpaces = prev && (
-        (isSpaceCode(prev.text) && (isSpaceFacility(item.str) || isSpaceCode(item.str))) ||
-        (isSpaceFacility(prev.text) && isSpaceCode(item.str))
-      );
-
-      if (isSameLine && !wouldMergeDistinctSpaces) {
+      if (
+        prev &&
+        Math.abs(prev.yPct - item.yPct) <= 0.65 &&
+        item.xPct - prev.maxX <= 1.2 &&
+        item.xPct >= prev.xPct - 0.3
+      ) {
         prev.text = `${prev.text} ${item.str}`.replace(/\s+/g, ' ').trim();
         prev.maxX = Math.max(prev.maxX, item.xPct + item.wPct);
       } else {
@@ -1232,14 +1351,12 @@
       const areaMatch = t.match(AREA_RE);
       let cleanText = t
         .replace(AREA_RE, '')
-        .replace(/^AREA\s+/i, '')
+        .replace(/^AREA\s*[:=]?\s*/i, '')
         .replace(/\s+AREA(\s+.*)?$/i, '')
         .replace(/\bFGL\s*[-–—:]\s*[\d.]+\b/gi, '')
-        .replace(/\b(?:RAMP|SLOPE\s*\d+:\d+|Cast-in-situ\s*Slab|AS\s*PER\s*DETAILS|NALLA\s*REROUTED)\b/gi, '')
+        .replace(/\b(?:RAMP|SLOPE\s*\d+:\d+|Cast\s*[-–—]\s*in\s*[-–—]\s*situ\s*Slab|AS\s*PER\s*DETAILS)\b/gi, '')
         .replace(/\b(?:\d+(\.\d+)?\s*M(?:TR)?\s*(?:WIDE)?\s*(?:ROAD|DRIVEWAY)|\d+(\.\d+)?\s*M(?:TR)?\s*WIDE|\d+\.?\d*\s*M\b)/gi, '')
-        .replace(/\bW\s*I\s*D\s*E\s*D\s*R\s*I\s*V\s*E\s*W\s*A\s*Y\b/gi, '')
-        .replace(/\b(?:DOCK|RAMP|CANOPY|SLAB)\b/gi, '')
-        .replace(/^\d+[\s\d,.]+(?=[A-Za-z])/g, '')
+        .replace(/\b(?:W\s*I\s*D\s*E\s*D\s*R\s*I\s*V\s*E\s*W\s*A\s*Y|\d+\s*M(?:TR)?\s*W\s*I\s*D\s*E\s*D\s*R\s*I\s*V\s*E\s*W\s*A\s*Y)\b/gi, '')
         .replace(/[:=\-]$/, '')
         .replace(/\s+/g, ' ')
         .trim();
@@ -1259,12 +1376,14 @@
       }
     }
 
-    // 4. Associate Area tokens with candidate space labels inside the same space
+    // 4. Associate Area tokens with candidate space labels inside the same space (Buildings first)
     for (const tok of areaTokens) {
       let best = null;
       let bestDist = Infinity;
+      // Pass 1: Try building labels first so small facilities don't steal building area
       for (const cand of candidateLabels) {
         if (cand.area) continue;
+        if (!isSpaceCode(cand.text) && !/BUILDING/i.test(cand.text)) continue;
         const dx = Math.abs(cand.xPct - tok.xPct);
         const dy = tok.yPct - cand.yPct;
         if (dx <= 6.5 && dy >= -1.5 && dy <= 5.5) {
@@ -1272,6 +1391,21 @@
           if (d < bestDist) {
             bestDist = d;
             best = cand;
+          }
+        }
+      }
+      // Pass 2: If no building matched, try any candidate
+      if (!best) {
+        for (const cand of candidateLabels) {
+          if (cand.area) continue;
+          const dx = Math.abs(cand.xPct - tok.xPct);
+          const dy = tok.yPct - cand.yPct;
+          if (dx <= 4.0 && dy >= -1.0 && dy <= 3.5) {
+            const d = dx + Math.abs(dy);
+            if (d < bestDist) {
+              bestDist = d;
+              best = cand;
+            }
           }
         }
       }
@@ -1311,10 +1445,11 @@
         const bh = parseFloat(parcel.bbox.h);
         const aspect = parcel.aspect || Math.max(bw / Math.max(0.01, bh), bh / Math.max(0.01, bw));
 
-        // For buildings, polygon must not be a thin line/strip/border
-        if (isBldg && (bw < 2.0 || bh < 2.0 || aspect > 5.0)) continue;
-        // For small facilities, allow down to 0.3 x 0.3
-        if (!isBldg && (bw < 0.3 || bh < 0.3)) continue;
+        // Strict architectural sizing:
+        // Buildings: minimum 3.0% x 2.0%, maximum 80% x 50%
+        if (isBldg && (bw < 3.0 || bh < 2.0 || bw > 80 || bh > 50)) continue;
+        // Non-building small facilities: max 8.0% x 8.0% or area <= 45
+        if (!isBldg && (bw < 0.3 || bh < 0.3 || bw > 8.0 || bh > 8.0 || parcel.area > 45)) continue;
 
         const bx = parseFloat(parcel.bbox.x);
         const by = parseFloat(parcel.bbox.y);
@@ -1323,15 +1458,29 @@
           cand.xPct >= bx - 0.5 && cand.xPct <= bx + bw + 0.5 &&
           cand.yPct >= by - 0.5 && cand.yPct <= by + bh + 0.5
         ) {
-          if (parcel.area < bestArea) {
-            bestArea = parcel.area;
-            bestParcel = {
-              polygon: parcel.polygon,
-              bbox: parcel.bbox,
-              area: parcel.area,
-              id: pid,
-              source: parcel.source || 'vector-pdf',
-            };
+          // If building, prefer the larger enclosing/merged polygon that encompasses the full structure
+          if (isBldg) {
+            if (!bestParcel || parcel.area > bestParcel.area) {
+              bestParcel = {
+                polygon: parcel.polygon,
+                bbox: parcel.bbox,
+                area: parcel.area,
+                id: pid,
+                source: parcel.isMerged ? 'merged-poly' : (parcel.source || 'vector-pdf'),
+              };
+            }
+          } else {
+            // For small facilities, pick tightest enclosing parcel
+            if (parcel.area < bestArea) {
+              bestArea = parcel.area;
+              bestParcel = {
+                polygon: parcel.polygon,
+                bbox: parcel.bbox,
+                area: parcel.area,
+                id: pid,
+                source: parcel.source || 'vector-pdf',
+              };
+            }
           }
         }
       }
@@ -1753,7 +1902,7 @@
     }
   }
 
-  const api = {
+  const smartAssistApi = {
     extractPdfLabelsFromBuffer,
     extractPdfVectorGeometry,
     extractRasterColorParcels,
@@ -1764,9 +1913,9 @@
   };
 
   if (typeof window !== 'undefined') {
-    window.SmartAssist = api;
+    window.SmartAssist = smartAssistApi;
   }
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = api;
+    module.exports = smartAssistApi;
   }
 })();
